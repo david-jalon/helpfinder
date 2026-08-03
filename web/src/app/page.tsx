@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useId, useState, type FormEvent } from "react";
 import type { GrantItem } from "@/lib/domain/grants";
 import styles from "./page.module.css";
 
@@ -21,6 +21,70 @@ const ORDER_OPTIONS = [
   { value: "nivel2", label: "Organismo" },
   { value: "numeroConvocatoria", label: "Nº convocatoria" },
 ];
+
+const DAYS = ["DOM", "LUN", "MAR", "MIÉ", "JUE", "VIE", "SÁB"];
+const MONTHS = ["ENE", "FEB", "MAR", "ABR", "MAY", "JUN", "JUL", "AGO", "SEP", "OCT", "NOV", "DIC"];
+
+type StampProps = {
+  size?: number;
+  label: string;
+  center: string;
+  centerSub?: string;
+  className?: string;
+  id?: string;
+};
+
+function Stamp({ size = 88, label, center, centerSub, className, id }: StampProps) {
+  const generatedId = useId();
+  const pathId = id ?? generatedId;
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 100 100"
+      width={size}
+      height={size}
+      role="img"
+      aria-label={`${label} ${center}`}
+    >
+      <circle cx="50" cy="50" r="48" fill="none" stroke="currentColor" strokeWidth="2" />
+      <circle cx="50" cy="50" r="44.5" fill="none" stroke="currentColor" strokeWidth="0.8" opacity="0.55" />
+      <defs>
+        <path
+          id={pathId}
+          d="M 50,50 m -38.5,0 a 38.5,38.5 0 1,1 77,0 a 38.5,38.5 0 1,1 -77,0"
+        />
+      </defs>
+      <text fontSize="9.5" letterSpacing="2" fill="currentColor" fontWeight="700">
+        <textPath href={`#${pathId}`} startOffset="25%">
+          {label}
+        </textPath>
+      </text>
+      <text
+        x="50"
+        y={centerSub ? 50 : 56}
+        textAnchor="middle"
+        fontSize={centerSub ? 11 : 13}
+        fontWeight="800"
+        fill="currentColor"
+      >
+        {center}
+      </text>
+      {centerSub && (
+        <text
+          x="50"
+          y="63"
+          textAnchor="middle"
+          fontSize="7"
+          letterSpacing="2.5"
+          fontWeight="700"
+          fill="currentColor"
+        >
+          {centerSub}
+        </text>
+      )}
+    </svg>
+  );
+}
 
 export default function Home() {
   // ── filtros (input) ──
@@ -48,6 +112,19 @@ export default function Home() {
   const [state, setState] = useState<SearchState>("idle");
   const [errorMsg, setErrorMsg] = useState("");
 
+  // Fecha para el sello de la hero (se fija tras el mount para no desincronizar la hidratación)
+  const [today, setToday] = useState<{ day: string; year: string } | null>(null);
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      const d = new Date();
+      setToday({
+        day: `${DAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]}`,
+        year: String(d.getFullYear()),
+      });
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, []);
+
   // Cargar regiones al montar
   useEffect(() => {
     let mounted = true;
@@ -69,12 +146,7 @@ export default function Home() {
   // Buscar cuando cambian los filtros aplicados
   useEffect(() => {
     const hasAnyFilter = query || tipoAdmin || regionId !== undefined || fechaDesde || fechaHasta;
-    if (!hasAnyFilter) {
-      setState("idle");
-      setResults([]);
-      setTotal(0);
-      return;
-    }
+    if (!hasAnyFilter) return;
 
     const controller = new AbortController();
 
@@ -169,161 +241,179 @@ export default function Home() {
           <span className={styles.logo}>
             <span className={styles.logoIcon}>◈</span> helpfinder
           </span>
-          <span className={styles.tagline}>Ayudas públicas en España</span>
+          <span className={styles.tagline}>Ayudas públicas · España · BDNS</span>
         </div>
       </header>
 
       {/* ── hero ── */}
       <section className={styles.hero}>
-        <h1 className={styles.heroTitle}>
-          Encuentra las ayudas públicas
-          <br />
-          que te corresponden
-        </h1>
-        <p className={styles.heroSub}>
-          Buscador gratuito de subvenciones y ayudas de la BDNS
-        </p>
+        <div className={styles.heroInner}>
+          <div className={styles.heroText}>
+            <h1 className={styles.heroTitle}>
+              Encuentra las ayudas públicas
+              <br />
+              que te corresponden
+            </h1>
+            <p className={styles.heroSub}>
+              Buscador gratuito de subvenciones y ayudas de la BDNS, la base
+              oficial de España.
+            </p>
+          </div>
+
+          {today && (
+            <Stamp
+              className={styles.heroStamp}
+              size={104}
+              label={"NUEVAS AYUDAS · REGISTRO DIARIO · ".repeat(2)}
+              center={today.day}
+              centerSub={today.year}
+              id="hero-seal"
+            />
+          )}
+        </div>
 
         <form className={styles.searchForm} onSubmit={handleSearch}>
-          {/* Fila 1: texto, administración, región */}
-          <div className={styles.filtersRow}>
-            <div className={styles.field}>
-              <label htmlFor="q" className={styles.fieldLabel}>Texto</label>
-              <input
-                id="q"
-                className={styles.fieldInput}
-                type="text"
-                value={queryInput}
-                onChange={(e) => setQueryInput(e.target.value)}
-                placeholder="Ej: digitalización, autónomos, I+D..."
-              />
-            </div>
+          <div className={styles.searchPanel}>
+            {/* Fila 1: texto, administración, región */}
+            <div className={styles.filtersRow}>
+              <div className={`${styles.field} ${styles.fieldWide}`}>
+                <label htmlFor="q" className={styles.fieldLabel}>Texto</label>
+                <input
+                  id="q"
+                  className={`${styles.fieldInput} ${styles.queryInput}`}
+                  type="text"
+                  value={queryInput}
+                  onChange={(e) => setQueryInput(e.target.value)}
+                  placeholder="Ej: digitalización, autónomos, I+D..."
+                />
+              </div>
 
-            <div className={styles.field}>
-              <label htmlFor="tipoAdmin" className={styles.fieldLabel}>Administración</label>
-              <select
-                id="tipoAdmin"
-                className={styles.fieldSelect}
-                value={tipoAdminInput}
-                onChange={(e) => {
-                  setTipoAdminInput(e.target.value);
-                  if (e.target.value !== "A") {
-                    setRegionIdInput("");
-                  }
-                }}
-              >
-                {TIPO_ADMIN_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
-              </select>
-            </div>
-
-            {tipoAdminInput === "A" && (
               <div className={styles.field}>
-                <label htmlFor="regionId" className={styles.fieldLabel}>Comunidad Autónoma</label>
+                <label htmlFor="tipoAdmin" className={styles.fieldLabel}>Administración</label>
                 <select
-                  id="regionId"
+                  id="tipoAdmin"
                   className={styles.fieldSelect}
-                  value={regionIdInput}
-                  onChange={(e) => setRegionIdInput(e.target.value)}
+                  value={tipoAdminInput}
+                  onChange={(e) => {
+                    setTipoAdminInput(e.target.value);
+                    if (e.target.value !== "A") {
+                      setRegionIdInput("");
+                    }
+                  }}
                 >
-                  <option value="">Todas</option>
-                  {regions.map((r) => (
-                    <option key={r.id} value={String(r.id)}>{r.name}</option>
+                  {TIPO_ADMIN_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
                   ))}
                 </select>
               </div>
-            )}
-          </div>
 
-          {/* Fila 2: fechas, orden, dirección */}
-          <div className={styles.filtersRow}>
-            <div className={styles.field}>
-              <label htmlFor="fechaDesde" className={styles.fieldLabel}>Fecha desde</label>
-              <input
-                id="fechaDesde"
-                className={styles.fieldInput}
-                type="date"
-                value={fechaDesdeInput}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  if (fechaHastaInput && val && val > fechaHastaInput) {
-                    setErrorMsg("La fecha 'desde' no puede ser mayor que la fecha 'hasta'.");
-                    return;
-                  }
-                  setErrorMsg("");
-                  setFechaDesdeInput(val);
-                }}
-              />
+              {tipoAdminInput === "A" && (
+                <div className={styles.field}>
+                  <label htmlFor="regionId" className={styles.fieldLabel}>Comunidad</label>
+                  <select
+                    id="regionId"
+                    className={styles.fieldSelect}
+                    value={regionIdInput}
+                    onChange={(e) => setRegionIdInput(e.target.value)}
+                  >
+                    <option value="">Todas</option>
+                    {regions.map((r) => (
+                      <option key={r.id} value={String(r.id)}>{r.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
 
-            <div className={styles.field}>
-              <label htmlFor="fechaHasta" className={styles.fieldLabel}>Fecha hasta</label>
-              <input
-                id="fechaHasta"
-                className={styles.fieldInput}
-                type="date"
-                value={fechaHastaInput}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  if (fechaDesdeInput && val && val < fechaDesdeInput) {
-                    setErrorMsg("La fecha 'hasta' no puede ser menor que la fecha 'desde'.");
-                    return;
-                  }
-                  setErrorMsg("");
-                  setFechaHastaInput(val);
-                }}
-              />
+            {/* Fila 2: fechas, orden, dirección */}
+            <div className={styles.filtersRow} style={{ marginTop: "0.75rem" }}>
+              <div className={styles.field}>
+                <label htmlFor="fechaDesde" className={styles.fieldLabel}>Fecha desde</label>
+                <input
+                  id="fechaDesde"
+                  className={styles.fieldInput}
+                  type="date"
+                  value={fechaDesdeInput}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (fechaHastaInput && val && val > fechaHastaInput) {
+                      setErrorMsg("La fecha 'desde' no puede ser mayor que la fecha 'hasta'.");
+                      return;
+                    }
+                    setErrorMsg("");
+                    setFechaDesdeInput(val);
+                  }}
+                />
+              </div>
+
+              <div className={styles.field}>
+                <label htmlFor="fechaHasta" className={styles.fieldLabel}>Fecha hasta</label>
+                <input
+                  id="fechaHasta"
+                  className={styles.fieldInput}
+                  type="date"
+                  value={fechaHastaInput}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (fechaDesdeInput && val && val < fechaDesdeInput) {
+                      setErrorMsg("La fecha 'hasta' no puede ser menor que la fecha 'desde'.");
+                      return;
+                    }
+                    setErrorMsg("");
+                    setFechaHastaInput(val);
+                  }}
+                />
+              </div>
+
+              <div className={styles.field}>
+                <label htmlFor="order" className={styles.fieldLabel}>Ordenar por</label>
+                <select
+                  id="order"
+                  className={styles.fieldSelect}
+                  value={orderInput}
+                  onChange={(e) => setOrderInput(e.target.value)}
+                >
+                  {ORDER_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className={styles.field}>
+                <label htmlFor="direccion" className={styles.fieldLabel}>Dirección</label>
+                <select
+                  id="direccion"
+                  className={styles.fieldSelect}
+                  value={direccionInput}
+                  onChange={(e) => setDireccionInput(e.target.value as "asc" | "desc")}
+                >
+                  <option value="desc">Descendente</option>
+                  <option value="asc">Ascendente</option>
+                </select>
+              </div>
             </div>
 
-            <div className={styles.field}>
-              <label htmlFor="order" className={styles.fieldLabel}>Ordenar por</label>
-              <select
-                id="order"
-                className={styles.fieldSelect}
-                value={orderInput}
-                onChange={(e) => setOrderInput(e.target.value)}
-              >
-                {ORDER_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>{opt.label}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className={styles.field}>
-              <label htmlFor="direccion" className={styles.fieldLabel}>Dirección</label>
-              <select
-                id="direccion"
-                className={styles.fieldSelect}
-                value={direccionInput}
-                onChange={(e) => setDireccionInput(e.target.value as "asc" | "desc")}
-              >
-                <option value="desc">Descendente</option>
-                <option value="asc">Ascendente</option>
-              </select>
-            </div>
-          </div>
-
-          <div className={styles.actions}>
-            <button
-              className={styles.searchBtn}
-              type="submit"
-              disabled={state === "loading"}
-            >
-              {state === "loading" ? "Buscando..." : "Buscar ayudas"}
-            </button>
-            {(query || tipoAdmin || regionId !== undefined || fechaDesde || fechaHasta) && (
+            <div className={styles.actions} style={{ marginTop: "1rem" }}>
               <button
-                type="button"
-                className={styles.clearBtn}
-                onClick={handleClear}
+                className={styles.searchBtn}
+                type="submit"
+                disabled={state === "loading"}
               >
-                Limpiar filtros
+                {state === "loading" ? "Buscando..." : "Buscar ayudas"}
               </button>
-            )}
-          </div>
+              {(query || tipoAdmin || regionId !== undefined || fechaDesde || fechaHasta) && (
+                <button
+                  type="button"
+                  className={styles.clearBtn}
+                  onClick={handleClear}
+                >
+                  Limpiar filtros
+                </button>
+              )}
+            </div>
 
-          {errorMsg && <p className={styles.filterError}>{errorMsg}</p>}
+            {errorMsg && <p className={styles.filterError}>{errorMsg}</p>}
+          </div>
         </form>
       </section>
 
@@ -344,14 +434,25 @@ export default function Home() {
             <ul className={styles.resultsList}>
               {results.map((grant) => (
                 <li key={grant.id} className={styles.resultCard}>
-                  <span className={styles.resultId}>{grant.id}</span>
-                  <h3 className={styles.resultTitle}>{grant.title}</h3>
-                  {grant.organization && (
-                    <p className={styles.resultOrg}>{grant.organization}</p>
-                  )}
+                  <div className={styles.resultTop}>
+                    <div className={styles.resultStamp}>
+                      <Stamp
+                        size={56}
+                        label={"REGISTRO · CONVOCATORIA · ".repeat(2)}
+                        center={grant.id}
+                      />
+                    </div>
+                    <div>
+                      <span className={styles.resultId}>Nº {grant.id}</span>
+                      <h3 className={styles.resultTitle}>{grant.title}</h3>
+                      {grant.organization && (
+                        <p className={styles.resultOrg}>{grant.organization}</p>
+                      )}
+                    </div>
+                  </div>
                   <div className={styles.resultMeta}>
                     {grant.publicationDate && (
-                      <span>Publicado: {grant.publicationDate}</span>
+                      <span>PUBLICADA · {grant.publicationDate}</span>
                     )}
                     {grant.sourceUrl && (
                       <a
@@ -384,19 +485,28 @@ export default function Home() {
       {/* ── features ── */}
       <section className={styles.features}>
         <div className={styles.feature}>
-          <span className={styles.featureIcon}>🔍</span>
-          <h3>Busca</h3>
-          <p>Escribe lo que necesitas y encuentra ayudas relevantes</p>
+          <p className={styles.featureLabel}>búsqueda</p>
+          <h3 className={styles.featureTitle}>En tus palabras</h3>
+          <p className={styles.featureText}>
+            Escribe lo que necesitas: digitalización, autónomos, I+D... sin
+            códigos ni jerga jurídica.
+          </p>
         </div>
         <div className={styles.feature}>
-          <span className={styles.featureIcon}>📋</span>
-          <h3>Filtra</h3>
-          <p>Resultados de la BDNS, la base oficial de subvenciones</p>
+          <p className={styles.featureLabel}>filtros</p>
+          <h3 className={styles.featureTitle}>Por lo que importa</h3>
+          <p className={styles.featureText}>
+            Administración, comunidad y fechas. Los datos vienen de la BDNS, la
+            base oficial de subvenciones.
+          </p>
         </div>
         <div className={styles.feature}>
-          <span className={styles.featureIcon}>🚀</span>
-          <h3>Descubre</h3>
-          <p>Accede directamente al origen de cada ayuda</p>
+          <p className={styles.featureLabel}>origen</p>
+          <h3 className={styles.featureTitle}>Al documento oficial</h3>
+          <p className={styles.featureText}>
+            Cada resultado te lleva a la convocatoria original para que la
+            consultes en su fuente.
+          </p>
         </div>
       </section>
 

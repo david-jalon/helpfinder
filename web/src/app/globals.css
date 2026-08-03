@@ -1,40 +1,32 @@
 /* ================================================================
    Helpfinder — globals.css
-   Paleta: Tinta #1a1f36 · Papel #f5f2eb · Sello #c23616
-           Oficina #8c7a6b · Brillo #f9a825
+   Registro oficial de noche: carbón azulado + tinta cálida,
+   sello rojo como acento único audaz + dorado de estampilla.
    ================================================================ */
 
 :root {
   /* tokens */
-  --tinta: #1a1f36;
-  --papel: #f5f2eb;
-  --sello: #c23616;
-  --oficina: #8c7a6b;
-  --brillo: #f9a825;
+  --bg: #0d1017;
+  --bg-elev: #161a24;
+  --bg-input: #0f131c;
+  --fg: #f2efe9;
+  --fg-muted: #9aa0ac;
+  --sello: #ff4a1c;
+  --sello-hover: #ff6a3d;
+  --brillo: #f5b301;
+  --hairline: color-mix(in srgb, var(--fg) 12%, transparent);
 
   /* superficies */
-  --bg: var(--papel);
-  --fg: var(--tinta);
-  --fg-muted: var(--oficina);
+  --bg-app: var(--bg);
+  --fg-app: var(--fg);
+  --fg-muted-app: var(--fg-muted);
   --accent: var(--sello);
-  --accent-hover: #a52d13;
-  --highlight: var(--brillo);
+  --accent-hover: var(--sello-hover);
 
   /* tipografía */
-  --font-display: var(--font-display), Georgia, "Times New Roman", serif;
+  --font-display: var(--font-display), "Archivo", "Arial Narrow", sans-serif;
   --font-body: var(--font-body), system-ui, -apple-system, sans-serif;
   --font-mono: var(--font-mono), "Courier New", monospace;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #111320;
-    --fg: #e8e6e1;
-    --fg-muted: #9a9590;
-    --accent: #e84520;
-    --accent-hover: #ff5a30;
-    --highlight: #fbb030;
-  }
 }
 
 /* ── reset suave ── */
@@ -49,7 +41,7 @@
 
 html {
   height: 100%;
-  color-scheme: light dark;
+  color-scheme: dark;
 }
 
 body {
@@ -57,8 +49,14 @@ body {
   display: flex;
   flex-direction: column;
   font-family: var(--font-body);
-  color: var(--fg);
-  background: var(--bg);
+  color: var(--fg-app);
+  background-color: var(--bg-app);
+  /* textura de papel de registro: punteado apenas visible */
+  background-image: radial-gradient(
+    color-mix(in srgb, var(--fg) 6%, transparent) 1px,
+    transparent 1px
+  );
+  background-size: 26px 26px;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   line-height: 1.6;
@@ -76,4 +74,9 @@ button {
 
 input {
   font: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--sello);
+  outline-offset: 2px;
 }

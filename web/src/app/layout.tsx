@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
-import { DM_Serif_Display, Inter, JetBrains_Mono } from "next/font/google";
+import { Archivo, Courier_Prime, Inter } from "next/font/google";
 import "./globals.css";
 
-const dmSerif = DM_Serif_Display({
-  weight: "400",
+const archivo = Archivo({
   subsets: ["latin"],
+  weight: ["500", "600", "700", "800"],
   variable: "--font-display",
 });
 
@@ -13,8 +13,9 @@ const inter = Inter({
   variable: "--font-body",
 });
 
-const jetbrains = JetBrains_Mono({
+const courierPrime = Courier_Prime({
   subsets: ["latin"],
+  weight: ["400", "700"],
   variable: "--font-mono",
 });
 
@@ -32,7 +33,7 @@ export default function RootLayout({
   return (
     <html
       lang="es"
-      className={`${dmSerif.variable} ${inter.variable} ${jetbrains.variable}`}
+      className={`${archivo.variable} ${inter.variable} ${courierPrime.variable}`}
     >
       <body>{children}</body>
     </html>
