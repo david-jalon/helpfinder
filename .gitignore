@@ -1,0 +1,11 @@
+# Diseño y apuntes personales
+AGENT.md
+FASES.md
+PLAN.md
+.documentation/
+
+# Estándar para apps
+node_modules/
+.next/
+.env
+.env*.local
