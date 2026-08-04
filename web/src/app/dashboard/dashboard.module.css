@@ -1,0 +1,77 @@
+/* ================================================================
+   Helpfinder — dashboard.module.css (vista mínima, Fase 6)
+   Se ampliará en la Fase 11 con las alertas.
+   ================================================================ */
+
+.dash {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 1.5rem;
+}
+
+.card {
+  width: 100%;
+  max-width: 480px;
+  background: var(--bg-elev);
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+  padding: 2rem 1.75rem;
+}
+
+.badge {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  color: var(--sello);
+  text-transform: uppercase;
+  margin-bottom: 0.9rem;
+}
+
+.title {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 1.5rem;
+  letter-spacing: -0.01em;
+  margin-bottom: 0.35rem;
+  text-wrap: balance;
+}
+
+.sub {
+  font-size: 0.95rem;
+  color: var(--fg-muted);
+  margin-bottom: 1.25rem;
+}
+
+.note {
+  font-size: 0.9rem;
+  color: var(--fg-muted);
+  line-height: 1.55;
+  padding: 0.75rem 0.875rem;
+  border-left: 2px solid var(--sello);
+  background: var(--bg-input);
+  margin-bottom: 1.5rem;
+}
+
+.submit {
+  padding: 0.75rem 1.25rem;
+  background: transparent;
+  color: var(--fg-muted);
+  border: 1px solid var(--hairline);
+  border-radius: 4px;
+  font-size: 0.9rem;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.submit:hover {
+  color: var(--fg);
+  border-color: var(--fg-muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .submit {
+    transition: none;
+  }
+}
