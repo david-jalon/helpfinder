@@ -114,6 +114,8 @@ export default function Home() {
 
   // Fecha para el sello de la hero (se fija tras el mount para no desincronizar la hidratación)
   const [today, setToday] = useState<{ day: string; year: string } | null>(null);
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null);
+
   useEffect(() => {
     const timer = window.setTimeout(() => {
       const d = new Date();
@@ -123,6 +125,23 @@ export default function Home() {
       });
     }, 0);
     return () => window.clearTimeout(timer);
+  }, []);
+
+  // Comprobar si hay sesión
+  useEffect(() => {
+    let mounted = true;
+    async function checkSession() {
+      try {
+        const res = await fetch("/api/profile", { cache: "no-store" });
+        if (mounted) {
+          setIsLoggedIn(res.ok);
+        }
+      } catch {
+        if (mounted) setIsLoggedIn(false);
+      }
+    }
+    void checkSession();
+    return () => { mounted = false; };
   }, []);
 
   // Cargar regiones al montar
@@ -241,7 +260,16 @@ export default function Home() {
           <span className={styles.logo}>
             <span className={styles.logoIcon}>◈</span> Helpfinder
           </span>
-          <span className={styles.tagline}>Ayudas públicas · España · BDNS</span>
+          <div className={styles.headerNav}>
+            <span className={styles.tagline}>Ayudas públicas · España · BDNS</span>
+            {isLoggedIn === null ? (
+              <span className={styles.headerLink}>&nbsp;</span>
+            ) : isLoggedIn ? (
+              <a href="/dashboard" className={styles.headerLinkPrimary}>Mi panel</a>
+            ) : (
+              <a href="/login" className={styles.headerLinkPrimary}>Entrar</a>
+            )}
+          </div>
         </div>
       </header>
 
