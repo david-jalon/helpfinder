@@ -1,0 +1,281 @@
+/* ================================================================
+   Helpfinder — settings.module.css
+   Configuración del perfil · "expediente abierto"
+   ================================================================ */
+
+.settings {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  padding: 3rem 1.5rem;
+}
+
+.card {
+  width: 100%;
+  max-width: 560px;
+  background: var(--bg-elev);
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+  padding: 2rem 1.75rem;
+}
+
+/* ── cabecera ── */
+
+.head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  margin-bottom: 1.75rem;
+}
+
+.badge {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  color: var(--brillo);
+  text-transform: uppercase;
+  margin-bottom: 0.9rem;
+}
+
+.title {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 1.6rem;
+  letter-spacing: -0.01em;
+  margin-bottom: 0.35rem;
+}
+
+.sub {
+  font-size: 0.9rem;
+  color: var(--fg-muted);
+}
+
+/* ── secciones ── */
+
+.section {
+  margin-bottom: 1.5rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.section:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.sectionTitle {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1rem;
+  margin-bottom: 1rem;
+  color: var(--fg);
+}
+
+/* ── campos ── */
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-bottom: 1rem;
+}
+
+.field:last-child {
+  margin-bottom: 0;
+}
+
+.label {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--fg-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
+.input {
+  padding: 0.75rem 0.875rem;
+  border: 1px solid var(--hairline);
+  border-radius: 4px;
+  background: var(--bg-input);
+  color: var(--fg);
+  font-size: 0.95rem;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.input::placeholder {
+  color: color-mix(in srgb, var(--fg-muted) 70%, transparent);
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--sello);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--sello) 25%, transparent);
+}
+
+.textarea {
+  composes: input;
+  min-height: 80px;
+  resize: vertical;
+  font-family: var(--font-body);
+}
+
+/* ── selección tipo perfil ── */
+
+.typeGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 0.5rem;
+}
+
+.typeOption {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.7rem 0.4rem;
+  border: 1px solid var(--hairline);
+  border-radius: 6px;
+  background: var(--bg-input);
+  color: var(--fg);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  text-align: center;
+}
+
+.typeOption:hover {
+  border-color: color-mix(in srgb, var(--fg) 30%, transparent);
+}
+
+.typeOptionSelected {
+  border-color: var(--sello);
+  background: color-mix(in srgb, var(--sello) 10%, transparent);
+}
+
+.typeIcon {
+  font-size: 1.2rem;
+  line-height: 1;
+}
+
+/* ── checkboxes ── */
+
+.checkGroup {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.checkItem {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--hairline);
+  border-radius: 4px;
+  background: var(--bg-input);
+  color: var(--fg);
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.checkItem:hover {
+  border-color: color-mix(in srgb, var(--fg) 30%, transparent);
+}
+
+.checkItemSelected {
+  border-color: var(--sello);
+  background: color-mix(in srgb, var(--sello) 10%, transparent);
+}
+
+.checkInput {
+  width: 1rem;
+  height: 1rem;
+  accent-color: var(--sello);
+}
+
+/* ── botón guardar ── */
+
+.save {
+  width: 100%;
+  padding: 0.875rem 1rem;
+  background: var(--sello);
+  color: var(--bg);
+  border: none;
+  border-radius: 4px;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 1rem;
+  margin-top: 1.5rem;
+  transition: background 0.15s;
+}
+
+.save:hover {
+  background: var(--sello-hover);
+}
+
+.save:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+/* ── mensajes ── */
+
+.error {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--sello);
+  line-height: 1.4;
+}
+
+.success {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--brillo);
+  line-height: 1.4;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid color-mix(in srgb, var(--brillo) 40%, transparent);
+  background: color-mix(in srgb, var(--brillo) 8%, transparent);
+  border-radius: 4px;
+}
+
+.loading {
+  text-align: center;
+  padding: 3rem 0;
+  color: var(--fg-muted);
+  font-size: 0.9rem;
+}
+
+.hint {
+  font-size: 0.8rem;
+  color: var(--fg-muted);
+  line-height: 1.4;
+}
+
+/* ── reduced motion ── */
+
+@media (prefers-reduced-motion: reduce) {
+  .input,
+  .typeOption,
+  .checkItem,
+  .save {
+    transition: none;
+  }
+}
+
+/* ── móvil ── */
+
+@media (max-width: 480px) {
+  .card {
+    padding: 1.5rem 1.25rem;
+  }
+
+  .typeGrid {
+    grid-template-columns: 1fr 1fr;
+  }
+}

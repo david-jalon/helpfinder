@@ -50,7 +50,11 @@ export async function proxy(request: NextRequest) {
 
   const pathname = request.nextUrl.pathname;
 
-  const isProtected = pathname.startsWith("/dashboard");
+  const isProtected =
+    pathname.startsWith("/dashboard") ||
+    pathname.startsWith("/onboarding") ||
+    pathname.startsWith("/settings") ||
+    pathname.startsWith("/api/profile");
   const isAuthPage = pathname === "/login" || pathname === "/register";
 
   // Sin sesión en una ruta privada → a /login
@@ -72,5 +76,12 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/login", "/register"],
+  matcher: [
+    "/dashboard/:path*",
+    "/onboarding/:path*",
+    "/settings/:path*",
+    "/api/profile/:path*",
+    "/login",
+    "/register",
+  ],
 };
