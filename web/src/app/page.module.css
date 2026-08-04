@@ -253,20 +253,34 @@
   gap: 1.1rem;
 }
 
-.resultStamp {
-  color: var(--sello);
-  opacity: 0.92;
-  margin-top: 0.1rem;
+.resultRef {
   flex-shrink: 0;
+  min-width: 4.5rem;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--hairline);
+  border-radius: 4px;
+  background: var(--bg-input);
+  text-align: center;
 }
 
-.resultId {
-  display: inline-block;
+.resultRefNum {
+  display: block;
   font-family: var(--font-mono);
-  font-size: 0.72rem;
+  font-size: 1rem;
+  font-weight: 800;
   color: var(--sello);
-  letter-spacing: 0.08em;
-  margin-bottom: 0.3rem;
+  letter-spacing: 0.03em;
+  line-height: 1.2;
+}
+
+.resultRefLabel {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+  font-weight: 700;
+  color: var(--fg-muted);
+  letter-spacing: 0.12em;
+  margin-top: 0.15rem;
 }
 
 .resultTitle {

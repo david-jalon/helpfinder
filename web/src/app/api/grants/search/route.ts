@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
 
   const q = searchParams.get("q") ?? undefined;
   const page = toPositiveInt(searchParams.get("page"), 1);
-  const pageSize = toPositiveInt(searchParams.get("pageSize"), 20);
+  const pageSize = Math.min(toPositiveInt(searchParams.get("pageSize"), 20), 50);
   const fechaDesde = searchParams.get("fechaDesde") ?? undefined;
   const fechaHasta = searchParams.get("fechaHasta") ?? undefined;
   const tipoAdministracion = searchParams.get("tipoAdministracion") ?? undefined;

@@ -239,7 +239,7 @@ export default function Home() {
       <header className={styles.header}>
         <div className={styles.headerInner}>
           <span className={styles.logo}>
-            <span className={styles.logoIcon}>◈</span> helpfinder
+            <span className={styles.logoIcon}>◈</span> Helpfinder
           </span>
           <span className={styles.tagline}>Ayudas públicas · España · BDNS</span>
         </div>
@@ -435,15 +435,11 @@ export default function Home() {
               {results.map((grant) => (
                 <li key={grant.id} className={styles.resultCard}>
                   <div className={styles.resultTop}>
-                    <div className={styles.resultStamp}>
-                      <Stamp
-                        size={56}
-                        label={"REGISTRO · CONVOCATORIA · ".repeat(2)}
-                        center={grant.id}
-                      />
+                    <div className={styles.resultRef}>
+                      <span className={styles.resultRefNum}>{grant.id}</span>
+                      <span className={styles.resultRefLabel}>nº convocatoria</span>
                     </div>
                     <div>
-                      <span className={styles.resultId}>Nº {grant.id}</span>
                       <h3 className={styles.resultTitle}>{grant.title}</h3>
                       {grant.organization && (
                         <p className={styles.resultOrg}>{grant.organization}</p>
