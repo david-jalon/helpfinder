@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import styles from "./app-header.module.css";
+import LogoMark from "./logo-mark";
 
 /**
  * Cabecera compartida de Helpfinder.
@@ -15,7 +16,7 @@ export default function AppHeader({ children }: { children?: ReactNode }) {
     <header className={styles.header}>
       <div className={styles.inner}>
         <Link href="/" className={styles.logo}>
-          <span className={styles.logoIcon}>◈</span> Helpfinder
+          <LogoMark size={20} className={styles.logoIcon} />  Helpfinder
         </Link>
         {children ? <nav className={styles.nav}>{children}</nav> : null}
       </div>

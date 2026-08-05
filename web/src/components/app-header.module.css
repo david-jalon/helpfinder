@@ -40,7 +40,8 @@
 
 .logoIcon {
   color: var(--sello);
-  font-weight: 800;
+  display: flex;
+  align-items: center;
 }
 
 .nav {
