@@ -6,7 +6,7 @@ import type { ProfileType, Colectivo, Region } from "@/lib/domain/profile";
 import styles from "./onboarding.module.css";
 
 /**
- * Onboarding — Fase 8
+ * Onboarding
  *
  * Mini-cuestionario guiado para crear el perfil del usuario.
  * Español llano: sin jerga jurídica ni códigos CNAE.

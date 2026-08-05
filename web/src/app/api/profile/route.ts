@@ -4,7 +4,7 @@ import { getProfile, upsertProfile } from "@/lib/db";
 import type { ProfileInput } from "@/lib/domain/profile";
 
 /**
- * API Profile — Fase 8
+ * API Profile
  *
  * GET  /api/profile  → devuelve el perfil del usuario autenticado
  * PUT  /api/profile  → crea o actualiza el perfil

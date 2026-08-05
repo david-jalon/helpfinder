@@ -8,7 +8,7 @@ import { logout } from "@/lib/supabase/actions";
 import styles from "./settings.module.css";
 
 /**
- * Settings — Fase 8
+ * Settings
  *
  * Página para ver y editar el perfil del usuario.
  * Carga los datos actuales y permite modificarlos.

@@ -2,7 +2,7 @@ import type { Profile } from "@/lib/domain/profile";
 import { createClient } from "@/lib/supabase/server";
 
 /**
- * Capa de acceso a datos (Fase 7).
+ * Capa de acceso a datos (Supabase).
  *
  * Todas las funciones usan el cliente Supabase del SERVIDOR, que ya
  * inyecta la sesión del usuario. Las tablas tienen RLS activado, así
@@ -155,7 +155,7 @@ export async function upsertAlerts(
 }
 
 /**
- * Guarda la decisión de triaje de una alerta (Fase 12).
+ * Guarda la decisión de triaje de una alerta.
  * `decision` puede ser 'seguir' | 'posible' | 'denegada' | null (= deshacer,
  * vuelve a Pendientes). El RLS solo permite tocar filas cuyo user_id
  * coincide con el usuario de la sesión.

@@ -1,9 +1,9 @@
 /**
- * Matcher determinista (Fase 10).
+ * Matcher determinista.
  *
  * Pre-filtro GRATIS y SIN IA que decide qué ayudas encajan con el perfil
  * del usuario usando solo los campos estructurados de BDNS ya cacheados
- * en `grants_seen.eligibility_json` (Fase 9):
+ * en `grants_seen.eligibility_json`:
  *   - beneficiaryTypes  → quién puede pedir la ayuda (regla DURA)
  *   - impactRegions     → dónde aplica (regla BLANDA)
  *   - title/purpose/sectors → búsqueda de keywords (regla BLANDA)

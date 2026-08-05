@@ -3,7 +3,7 @@ import { searchGrants } from "@/lib/bdns/client";
 import { enrichGrantsWithEligibility } from "@/lib/bdns/detail";
 
 /**
- * Motor diario (Fase 9).
+ * Motor diario (cron).
  *
  * Cada día, Vercel Cron llama a /api/cron/daily que ejecuta `dailyScan()`.
  * Esta función:

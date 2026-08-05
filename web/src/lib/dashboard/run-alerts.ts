@@ -1,11 +1,11 @@
 /**
- * Run alerts — Fase 11 · Diario de decisiones — Fase 12
+ * Run alerts — diario de decisiones
  *
  * Orquesta el "gatillo" del dashboard: al abrirlo se generan las alertas
  * del día para el usuario. Flujo:
  *
  *  1. Ayudas NUEVAS desde la última visita (`profiles.last_seen_at`).
- *  2. Matcher determinista (Fase 10) → matched / maybe / excluded.
+ *  2. Matcher determinista → matched / maybe / excluded.
  *  3. Una llamada Gemini (key del usuario) solo para matched+maybe.
  *  4. Guarda todo en `user_alerts` (upsert idempotente por user+grant).
  *  5. Avanza la marca de agua: `last_seen_at = ahora`.
@@ -13,7 +13,7 @@
  * El dashboard NO es solo lo de hoy: es un DIARIO persistente. Por eso
  * esta orquestación solo produce las alertas frescas, y la ruta API las
  * fusiona con las ya guardadas en `user_alerts` (que conservan la
- * decisión de triaje del usuario, Fase 12).
+ * decisión de triaje del usuario).
  *
  * Las partes puras (sin BD ni red) están separadas para poder testearlas
  * y para que el cliente del dashboard no arrastre código de servidor:

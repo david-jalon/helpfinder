@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { dailyScan } from "@/lib/grants/daily-scan";
 
 /**
- * Cron diario — Fase 9
+ * Cron diario
  *
  * Vercel Cron llama a esta ruta una vez al día (configurado en vercel.json).
  * Verifica un header secreto para que nadie más pueda ejecutarla.

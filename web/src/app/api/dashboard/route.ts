@@ -10,7 +10,7 @@ import {
 } from "@/lib/dashboard/run-alerts";
 
 /**
- * API Dashboard — Fase 11 · Diario de decisiones — Fase 12
+ * API Dashboard — diario de decisiones
  *
  * GET /api/dashboard  → el diario completo de alertas del usuario.
  *

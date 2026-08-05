@@ -4,7 +4,7 @@ import { setAlertDecision } from "@/lib/db";
 import { isAlertDecision } from "@/lib/dashboard/run-alerts";
 
 /**
- * API Alerts — Fase 11 · Diario de decisiones — Fase 12
+ * API Alerts — diario de decisiones
  *
  * PUT /api/alerts/[id]  → guarda el triaje de la alerta.
  * Cuerpo: { decision: "seguir" | "posible" | "denegada" | null }

@@ -1,5 +1,5 @@
 /**
- * Grant Scorer con IA (Fase 10).
+ * Grant Scorer con IA (Gemini).
  *
  * Puntúa las ayudas que ya pasaron el pre-filtro (matcher) haciendo UNA
  * sola llamada batch a Gemini con la API key del PROPIO usuario.

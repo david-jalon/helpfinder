@@ -495,7 +495,7 @@ export default function Home() {
 
         {state === "idle" && (
           <div className={styles.idle}>
-            <p>Empieza escribiendo lo que necesitas</p>
+            <p>Busca las ayudas que necesitas</p>
           </div>
         )}
       </section>
@@ -538,8 +538,7 @@ export default function Home() {
             rel="noopener noreferrer"
           >
             BDNS
-          </a>{" "}
-          · Proyecto de aprendizaje
+          </a>
         </p>
       </footer>
     </>

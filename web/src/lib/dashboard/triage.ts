@@ -1,5 +1,5 @@
 /**
- * Diario de decisiones — Fase 12
+ * Diario de decisiones
  *
  * Helpers PUROS del diario de alertas, sin dependencias de servidor ni BD:
  * se pueden importar desde componentes cliente sin arrastrar `next/headers`.

@@ -11,7 +11,7 @@ import {
 import styles from "./dashboard.module.css";
 
 /**
- * Dashboard — Fase 11 · Diario de decisiones — Fase 12
+ * Dashboard — diario de decisiones
  *
  * Cliente: al montar pide a /api/dashboard el diario completo (nuevas
  * puntuadas con la key del usuario o fallback por reglas + todo lo

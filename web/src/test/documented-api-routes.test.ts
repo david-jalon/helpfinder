@@ -4,8 +4,8 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 /**
- * Rutas API documentadas en FASES.md → segmentos bajo src/app/api.
- * Mantener sincronizado con las rutas creadas en Fase 4.
+ * Rutas API documentadas → segmentos bajo src/app/api.
+ * Mantener sincronizado con las rutas de la BFF.
  */
 const DOCUMENTED_ROUTE_SEGMENTS: string[][] = [
   ["grants", "search"],

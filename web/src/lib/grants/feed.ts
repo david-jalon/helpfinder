@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 
 /**
- * Feed de ayudas (Fase 9).
+ * Feed de ayudas (BDNS).
  *
  * Lee la tabla `grants_seen` (caché pública compartida) para
  * mostrar ayudas recientes en el dashboard o en la landing.
@@ -65,7 +65,7 @@ export async function getGrantByNumConv(
 }
 
 /**
- * Devuelve varias ayudas por sus num_convocatoria (Fase 12).
+ * Devuelve varias ayudas por sus num_convocatoria.
  * Se usa para completar título/organización/enlace de las alertas
  * persistidas en `user_alerts` al recargar el dashboard.
  */
