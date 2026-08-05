@@ -1,0 +1,62 @@
+/* ================================================================
+   Helpfinder — app-header.module.css (cabecera compartida)
+   El logo y la distribución son idénticos en todas las páginas:
+   header sticky con blur, contenedor de 1024px y logo enlace a "/".
+   ================================================================ */
+
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--hairline);
+}
+
+.inner {
+  max-width: 1024px;
+  margin: 0 auto;
+  padding: 0.9rem 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.logo {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.25rem;
+  letter-spacing: 0.01em;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: color 0.15s;
+}
+
+.logo:hover {
+  color: var(--sello);
+}
+
+.logoIcon {
+  color: var(--sello);
+  font-weight: 800;
+}
+
+.nav {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+@media (max-width: 560px) {
+  .inner {
+    padding: 0.8rem 1.1rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .logo {
+    transition: none;
+  }
+}

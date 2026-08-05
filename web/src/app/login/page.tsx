@@ -3,6 +3,7 @@
 import { useSearchParams, useRouter } from "next/navigation";
 import { Suspense, useState, type FormEvent } from "react";
 import Link from "next/link";
+import AppHeader from "@/components/app-header";
 import { createClient } from "@/lib/supabase/client";
 import styles from "../auth.module.css";
 
@@ -35,62 +36,65 @@ function LoginForm() {
   }
 
   return (
-    <main className={styles.auth}>
-      <div className={styles.card}>
-        <div className={styles.head}>
-          <p className={styles.badge}>Acceso de entrada</p>
-          <h1 className={styles.title}>Entra en Helpfinder</h1>
-          <p className={styles.sub}>
-            Revisa cada día las ayudas que te corresponden.
+    <>
+      <AppHeader />
+      <main className={styles.auth}>
+        <div className={styles.card}>
+          <div className={styles.head}>
+            <p className={styles.badge}>Acceso de entrada</p>
+            <h1 className={styles.title}>Entra en Helpfinder</h1>
+            <p className={styles.sub}>
+              Revisa cada día las ayudas que te corresponden.
+            </p>
+          </div>
+
+          <form className={styles.form} onSubmit={handleSubmit}>
+            <div className={styles.field}>
+              <label className={styles.label} htmlFor="email">
+                Correo electrónico
+              </label>
+              <input
+                id="email"
+                className={styles.input}
+                type="email"
+                autoComplete="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+            </div>
+
+            <div className={styles.field}>
+              <label className={styles.label} htmlFor="password">
+                Contraseña
+              </label>
+              <input
+                id="password"
+                className={styles.input}
+                type="password"
+                autoComplete="current-password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+            </div>
+
+            {error && <p className={styles.error}>{error}</p>}
+
+            <button className={styles.submit} type="submit" disabled={sending}>
+              {sending ? "Comprobando..." : "Entrar"}
+            </button>
+          </form>
+
+          <p className={styles.alt}>
+            ¿No tienes cuenta?{" "}
+            <Link className={styles.altLink} href="/register">
+              Regístrate
+            </Link>
           </p>
         </div>
-
-        <form className={styles.form} onSubmit={handleSubmit}>
-          <div className={styles.field}>
-            <label className={styles.label} htmlFor="email">
-              Correo electrónico
-            </label>
-            <input
-              id="email"
-              className={styles.input}
-              type="email"
-              autoComplete="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-          </div>
-
-          <div className={styles.field}>
-            <label className={styles.label} htmlFor="password">
-              Contraseña
-            </label>
-            <input
-              id="password"
-              className={styles.input}
-              type="password"
-              autoComplete="current-password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-          </div>
-
-          {error && <p className={styles.error}>{error}</p>}
-
-          <button className={styles.submit} type="submit" disabled={sending}>
-            {sending ? "Comprobando..." : "Entrar"}
-          </button>
-        </form>
-
-        <p className={styles.alt}>
-          ¿No tienes cuenta?{" "}
-          <Link className={styles.altLink} href="/register">
-            Regístrate
-          </Link>
-        </p>
-      </div>
-    </main>
+      </main>
+    </>
   );
 }
 

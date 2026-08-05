@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import AppHeader from "@/components/app-header";
 import { logout } from "@/lib/supabase/actions";
 import {
   buildTabSummary,
@@ -102,23 +103,19 @@ export default function DashboardPage() {
   }, []);
 
   return (
-    <main className={styles.dash}>
-      <header className={styles.header}>
-        <span className={styles.logo}>
-          <span className={styles.logoIcon}>◈</span> Helpfinder
-        </span>
-        <nav className={styles.nav}>
-          <a href="/settings" className={styles.navLink}>
-            Ajustes
-          </a>
-          <form action={logout}>
-            <button className={styles.logout} type="submit">
-              Cerrar sesión
-            </button>
-          </form>
-        </nav>
-      </header>
+    <>
+      <AppHeader>
+        <a href="/settings" className={styles.navLink}>
+          Mi perfil
+        </a>
+        <form action={logout}>
+          <button className={styles.logout} type="submit">
+            Cerrar sesión
+          </button>
+        </form>
+      </AppHeader>
 
+      <main className={styles.dash}>
       {state.kind === "loading" && (
         <section className={styles.center}>
           <p className={styles.loading}>Abriendo tu expediente de hoy...</p>
@@ -150,7 +147,8 @@ export default function DashboardPage() {
       )}
 
       {state.kind === "ready" && <Ready data={state.data} />}
-    </main>
+      </main>
+    </>
   );
 }
 

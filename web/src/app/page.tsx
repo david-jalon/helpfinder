@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useState, type FormEvent } from "react";
+import AppHeader from "@/components/app-header";
 import type { GrantItem } from "@/lib/domain/grants";
 import styles from "./page.module.css";
 
@@ -255,23 +256,16 @@ export default function Home() {
   return (
     <>
       {/* ── header ── */}
-      <header className={styles.header}>
-        <div className={styles.headerInner}>
-          <span className={styles.logo}>
-            <span className={styles.logoIcon}>◈</span> Helpfinder
-          </span>
-          <div className={styles.headerNav}>
-            <span className={styles.tagline}>Ayudas públicas · España · BDNS</span>
-            {isLoggedIn === null ? (
-              <span className={styles.headerLink}>&nbsp;</span>
-            ) : isLoggedIn ? (
-              <a href="/dashboard" className={styles.headerLinkPrimary}>Mi panel</a>
-            ) : (
-              <a href="/login" className={styles.headerLinkPrimary}>Entrar</a>
-            )}
-          </div>
-        </div>
-      </header>
+      <AppHeader>
+        <span className={styles.tagline}>Ayudas públicas · España · BDNS</span>
+        {isLoggedIn === null ? (
+          <span className={styles.headerLink}>&nbsp;</span>
+        ) : isLoggedIn ? (
+          <a href="/dashboard" className={styles.headerLinkPrimary}>Mi panel</a>
+        ) : (
+          <a href="/login" className={styles.headerLinkPrimary}>Entrar</a>
+        )}
+      </AppHeader>
 
       {/* ── hero ── */}
       <section className={styles.hero}>

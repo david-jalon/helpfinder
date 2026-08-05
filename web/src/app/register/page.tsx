@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import Link from "next/link";
+import AppHeader from "@/components/app-header";
 import { createClient } from "@/lib/supabase/client";
 import styles from "../auth.module.css";
 
@@ -57,77 +58,80 @@ export default function RegisterPage() {
   }
 
   return (
-    <main className={styles.auth}>
-      <div className={styles.card}>
-        <div className={styles.head}>
-          <p className={styles.badge}>Alta de expediente</p>
-          <h1 className={styles.title}>Crea tu cuenta</h1>
-          <p className={styles.sub}>
-            Gratis. Tú pones tu propia key de IA cuando configures tu perfil.
+    <>
+      <AppHeader />
+      <main className={styles.auth}>
+        <div className={styles.card}>
+          <div className={styles.head}>
+            <p className={styles.badge}>Alta de expediente</p>
+            <h1 className={styles.title}>Crea tu cuenta</h1>
+            <p className={styles.sub}>
+              Gratis. Tú pones tu propia key de IA cuando configures tu perfil.
+            </p>
+          </div>
+
+          <form className={styles.form} onSubmit={handleSubmit}>
+            <div className={styles.field}>
+              <label className={styles.label} htmlFor="name">
+                Nombre
+              </label>
+              <input
+                id="name"
+                className={styles.input}
+                type="text"
+                autoComplete="name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+              />
+            </div>
+
+            <div className={styles.field}>
+              <label className={styles.label} htmlFor="email">
+                Correo electrónico
+              </label>
+              <input
+                id="email"
+                className={styles.input}
+                type="email"
+                autoComplete="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+            </div>
+
+            <div className={styles.field}>
+              <label className={styles.label} htmlFor="password">
+                Contraseña
+              </label>
+              <input
+                id="password"
+                className={styles.input}
+                type="password"
+                autoComplete="new-password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+            </div>
+
+            {error && <p className={styles.error}>{error}</p>}
+            {info && <p className={styles.info}>{info}</p>}
+
+            <button className={styles.submit} type="submit" disabled={sending}>
+              {sending ? "Creando cuenta..." : "Crear cuenta"}
+            </button>
+          </form>
+
+          <p className={styles.alt}>
+            ¿Ya tienes cuenta?{" "}
+            <Link className={styles.altLink} href="/login">
+              Entra
+            </Link>
           </p>
         </div>
-
-        <form className={styles.form} onSubmit={handleSubmit}>
-          <div className={styles.field}>
-            <label className={styles.label} htmlFor="name">
-              Nombre
-            </label>
-            <input
-              id="name"
-              className={styles.input}
-              type="text"
-              autoComplete="name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
-          </div>
-
-          <div className={styles.field}>
-            <label className={styles.label} htmlFor="email">
-              Correo electrónico
-            </label>
-            <input
-              id="email"
-              className={styles.input}
-              type="email"
-              autoComplete="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-          </div>
-
-          <div className={styles.field}>
-            <label className={styles.label} htmlFor="password">
-              Contraseña
-            </label>
-            <input
-              id="password"
-              className={styles.input}
-              type="password"
-              autoComplete="new-password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-          </div>
-
-          {error && <p className={styles.error}>{error}</p>}
-          {info && <p className={styles.info}>{info}</p>}
-
-          <button className={styles.submit} type="submit" disabled={sending}>
-            {sending ? "Creando cuenta..." : "Crear cuenta"}
-          </button>
-        </form>
-
-        <p className={styles.alt}>
-          ¿Ya tienes cuenta?{" "}
-          <Link className={styles.altLink} href="/login">
-            Entra
-          </Link>
-        </p>
-      </div>
-    </main>
+      </main>
+    </>
   );
 }
 

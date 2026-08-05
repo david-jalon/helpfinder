@@ -1,7 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState, type FormEvent } from "react";
+import AppHeader from "@/components/app-header";
 import type { ProfileType, Colectivo, Region } from "@/lib/domain/profile";
+import { logout } from "@/lib/supabase/actions";
 import styles from "./settings.module.css";
 
 /**
@@ -151,17 +154,40 @@ export default function SettingsPage() {
 
   if (loading) {
     return (
-      <main className={styles.settings}>
-        <div className={styles.card}>
-          <p className={styles.loading}>Cargando perfil...</p>
-        </div>
-      </main>
+      <>
+        <AppHeader>
+          <Link className={styles.navLink} href="/dashboard">
+            Mi panel
+          </Link>
+          <form action={logout}>
+            <button className={styles.logout} type="submit">
+              Cerrar sesión
+            </button>
+          </form>
+        </AppHeader>
+        <main className={styles.settings}>
+          <div className={styles.card}>
+            <p className={styles.loading}>Cargando perfil...</p>
+          </div>
+        </main>
+      </>
     );
   }
 
   return (
-    <main className={styles.settings}>
-      <div className={styles.card}>
+    <>
+      <AppHeader>
+        <Link className={styles.navLink} href="/dashboard">
+          Mi panel
+        </Link>
+        <form action={logout}>
+          <button className={styles.logout} type="submit">
+            Cerrar sesión
+          </button>
+        </form>
+      </AppHeader>
+      <main className={styles.settings}>
+        <div className={styles.card}>
         <div className={styles.head}>
           <p className={styles.badge}>Configuración</p>
           <h1 className={styles.title}>Tu perfil</h1>
@@ -312,5 +338,6 @@ export default function SettingsPage() {
         </form>
       </div>
     </main>
+    </>
   );
 }

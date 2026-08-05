@@ -10,6 +10,40 @@
   padding: 3rem 1.5rem;
 }
 
+/* ── enlaces del header (el header vive en components) ── */
+
+.navLink {
+  font-size: 0.9rem;
+  color: var(--fg-muted);
+  transition: color 0.15s;
+}
+
+.navLink:hover {
+  color: var(--fg);
+}
+
+.logout {
+  background: transparent;
+  border: 1px solid var(--hairline);
+  color: var(--fg-muted);
+  border-radius: 4px;
+  padding: 0.4rem 0.8rem;
+  font-size: 0.85rem;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.logout:hover {
+  color: var(--fg);
+  border-color: var(--fg-muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .navLink,
+  .logout {
+    transition: none;
+  }
+}
+
 .card {
   width: 100%;
   max-width: 560px;
