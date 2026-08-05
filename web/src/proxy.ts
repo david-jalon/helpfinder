@@ -54,7 +54,9 @@ export async function proxy(request: NextRequest) {
     pathname.startsWith("/dashboard") ||
     pathname.startsWith("/onboarding") ||
     pathname.startsWith("/settings") ||
-    pathname.startsWith("/api/profile");
+    pathname.startsWith("/api/profile") ||
+    pathname.startsWith("/api/dashboard") ||
+    pathname.startsWith("/api/alerts");
   const isAuthPage = pathname === "/login" || pathname === "/register";
 
   // Sin sesión en una ruta privada → a /login
@@ -81,6 +83,8 @@ export const config = {
     "/onboarding/:path*",
     "/settings/:path*",
     "/api/profile/:path*",
+    "/api/dashboard/:path*",
+    "/api/alerts/:path*",
     "/login",
     "/register",
   ],

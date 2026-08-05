@@ -5,6 +5,7 @@ import type { MatchResult } from "@/lib/matching/matcher";
 import {
   buildFallbackResults,
   buildPrompt,
+  formatScoringError,
   hasAiConfigured,
   parseAiResponse,
   scoreGrantsForUser,
@@ -121,6 +122,40 @@ describe("buildFallbackResults", () => {
       reason: expect.stringContaining("Coincide con tu región"),
     });
     expect(results[1]).toMatchObject({ grantId: "2", score: 50 });
+  });
+});
+
+describe("formatScoringError", () => {
+  it("429 se etiqueta como cuota agotada y conserva el detalle", () => {
+    const msg = formatScoringError({
+      status: 429,
+      statusText: "RESOURCE_EXHAUSTED",
+      message: "Quota exceeded for metric generate_content_free_tier_requests",
+    });
+    expect(msg).toContain("Cuota de Gemini agotada (429)");
+    expect(msg).toContain("RESOURCE_EXHAUSTED");
+    expect(msg).toContain("Quota exceeded");
+  });
+
+  it("otros códigos muestran el status y el detalle", () => {
+    const msg = formatScoringError({
+      status: 403,
+      statusText: "PERMISSION_DENIED",
+      message: "API key not restricted",
+    });
+    expect(msg).toContain("error 403");
+    expect(msg).toContain("API key not restricted");
+  });
+
+  it("sin status usa el prefijo genérico", () => {
+    const msg = formatScoringError({ message: "NetworkError: getaddrinfo" });
+    expect(msg).toContain("No se pudo puntuar con IA");
+    expect(msg).toContain("NetworkError");
+  });
+
+  it("tolera errores vacíos o no objetos", () => {
+    expect(formatScoringError({})).toContain("Error desconocido");
+    expect(formatScoringError("raw string")).toContain("Error desconocido");
   });
 });
 

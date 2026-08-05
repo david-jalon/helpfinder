@@ -106,3 +106,69 @@ export async function getAlertsForCurrentUser() {
   if (error) throw error;
   return data;
 }
+
+export type AlertUpsertInput = {
+  grantId: string;
+  score: number | null;
+  aiReason: string | null;
+  matchReasons: string[];
+  aiStatus: "ok" | "fallback" | "pending";
+  bucket: "matched" | "maybe" | "excluded";
+};
+
+/**
+ * Inserta (o actualiza) las alertas del día en lote.
+ * `UNIQUE(user_id, grant_id)` hace el upsert idempotente: si el usuario
+ * abre el dashboard dos veces el mismo día, no se duplican alertas.
+ * Devuelve las filas finales para conocer sus `id`.
+ * Nota: el upsert NO toca la columna `decision`, así que el triaje del
+ * usuario se conserva aunque la ayuda vuelva a puntuarse.
+ */
+export async function upsertAlerts(
+  userId: string,
+  alerts: AlertUpsertInput[]
+): Promise<{ id: string; grant_id: string }[]> {
+  if (alerts.length === 0) return [];
+
+  const supabase = await createClient();
+
+  const rows = alerts.map((a) => ({
+    user_id: userId,
+    grant_id: a.grantId,
+    score: a.score,
+    ai_reason: a.aiReason,
+    match_reasons: a.matchReasons,
+    ai_status: a.aiStatus,
+    bucket: a.bucket,
+  }));
+
+  const { data, error } = await supabase
+    .from("user_alerts")
+    .upsert(rows, { onConflict: "user_id,grant_id" })
+    .select("id, grant_id");
+
+  if (error) throw error;
+  return (data ?? []).map((row) => ({
+    id: String(row.id),
+    grant_id: String(row.grant_id),
+  }));
+}
+
+/**
+ * Guarda la decisión de triaje de una alerta (Fase 12).
+ * `decision` puede ser 'seguir' | 'posible' | 'denegada' | null (= deshacer,
+ * vuelve a Pendientes). El RLS solo permite tocar filas cuyo user_id
+ * coincide con el usuario de la sesión.
+ */
+export async function setAlertDecision(
+  alertId: string,
+  decision: "seguir" | "posible" | "denegada" | null
+): Promise<void> {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("user_alerts")
+    .update({ decision })
+    .eq("id", alertId);
+
+  if (error) throw error;
+}

@@ -11,6 +11,10 @@ const DOCUMENTED_ROUTE_SEGMENTS: string[][] = [
   ["grants", "search"],
   ["grants", "[id]"],
   ["catalogs", "regions"],
+  ["profile"],
+  ["dashboard"],
+  ["alerts", "[id]"],
+  ["cron", "daily"],
 ];
 
 const __dirname = dirname(fileURLToPath(import.meta.url));

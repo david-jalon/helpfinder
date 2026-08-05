@@ -66,6 +66,18 @@ create policy "grants_seen: lectura pública"
   on public.grants_seen for select
   using (true);
 
+-- Escritura: dato público BDNS, la escribe el cron (Fase 9). Sin estas
+-- políticas, el cron (cliente anónimo del servidor) no podría escribir
+-- porque RLS bloquea todo lo que no tiene política. Añadidas en Fase 11
+-- al destaparse el bug en las pruebas del dashboard.
+create policy "grants_seen: inserción pública (dato público)"
+  on public.grants_seen for insert
+  with check (true);
+
+create policy "grants_seen: actualización pública (dato público)"
+  on public.grants_seen for update
+  using (true);
+
 -- ────────────────────────────────────────────────────────────
 -- 3) user_alerts — alertas de cada usuario sobre una ayuda
 --    Multi-tenant por user_id + una alerta por (usuario, ayuda).
@@ -78,9 +90,13 @@ create table if not exists public.user_alerts (
   ai_reason text,                    -- motivo que da Gemini
   match_reasons text[],              -- reglas del matcher que pasó
   ai_status text default 'pending',  -- 'ok' | 'fallback' | 'pending'
-  seen boolean default false,        -- marcar como leída
+  bucket text default 'excluded',    -- 'matched' | 'maybe' | 'excluded' (Fase 12)
+  decision text,                     -- triaje: 'seguir' | 'posible' | 'denegada' | NULL = pendiente (Fase 12)
+  seen boolean default false,        -- (legacy Fase 11) sin uso en el UI actual
   created_at timestamptz default now(),
-  unique (user_id, grant_id)         -- una alerta por usuario y ayuda
+  unique (user_id, grant_id),        -- una alerta por usuario y ayuda
+  constraint user_alerts_bucket_check check (bucket in ('matched', 'maybe', 'excluded')),
+  constraint user_alerts_decision_check check (decision is null or decision in ('seguir', 'posible', 'denegada'))
 );
 
 alter table public.user_alerts enable row level security;

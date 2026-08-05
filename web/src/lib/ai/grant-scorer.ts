@@ -38,7 +38,7 @@ export type ScorableGrant = {
 /* ------------------------------------------------------------------ */
 
 function getModel(): string {
-  return process.env.GEMINI_MODEL?.trim() || "gemini-2.0-flash";
+  return process.env.GEMINI_MODEL?.trim() || "gemini-3.6-flash";
 }
 
 function getMaxGrants(): number {
@@ -193,6 +193,39 @@ export function buildFallbackResults(candidates: ScorableGrant[]): ScoredGrant[]
 }
 
 /* ------------------------------------------------------------------ */
+/*  Mensaje de error (se muestra en el aviso del dashboard)            */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Formatea el error real de Gemini para que el usuario (o el log) vea
+ * la causa exacta en vez de un "algo falló" genérico.
+ * El `message` del SDK ya suele incluir el detalle del servidor.
+ */
+export function formatScoringError(error: unknown): string {
+  const err = error as { status?: unknown; statusText?: unknown; message?: unknown };
+
+  const status = typeof err.status === "number" ? err.status : null;
+  const statusText =
+    typeof err.statusText === "string" && err.statusText.trim().length > 0
+      ? err.statusText.trim()
+      : "";
+  const detail =
+    typeof err.message === "string" && err.message.trim().length > 0
+      ? err.message.trim().slice(0, 300)
+      : "Error desconocido";
+
+  const parts = [statusText, detail].filter((p) => p.length > 0);
+
+  if (status === 429) {
+    return `Cuota de Gemini agotada (429). ${parts.join(" ")}`.trim();
+  }
+  if (status !== null) {
+    return `Gemini respondió con error ${status}. ${parts.join(" ")}`.trim();
+  }
+  return `No se pudo puntuar con IA: ${parts.join(" ")}`.trim();
+}
+
+/* ------------------------------------------------------------------ */
 /*  Función principal                                                  */
 /* ------------------------------------------------------------------ */
 
@@ -239,13 +272,17 @@ export async function scoreGrantsForUser(
 
     return { status: "ok", results, model: getModel() };
   } catch (error) {
-    const isQuota = (error as { status?: number })?.status === 429;
+    const message = formatScoringError(error);
+
+    // Sin loguear la key: solo el error real, para diagnosticar.
+    console.error(
+      JSON.stringify({ event: "grant_score_error", detail: message })
+    );
+
     return {
       status: "fallback",
       results: buildFallbackResults(filtered),
-      message: isQuota
-        ? "Cuota de Gemini agotada (429); mostrando encaje por reglas"
-        : "No se pudo puntuar con IA; mostrando encaje por reglas",
+      message,
     };
   }
 }

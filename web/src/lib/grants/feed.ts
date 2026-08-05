@@ -65,6 +65,24 @@ export async function getGrantByNumConv(
 }
 
 /**
+ * Devuelve varias ayudas por sus num_convocatoria (Fase 12).
+ * Se usa para completar título/organización/enlace de las alertas
+ * persistidas en `user_alerts` al recargar el dashboard.
+ */
+export async function getGrantsSeenByIds(ids: string[]): Promise<SeenGrant[]> {
+  if (ids.length === 0) return [];
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("grants_seen")
+    .select("*")
+    .in("num_convocatoria", ids);
+
+  if (error) throw error;
+  return (data ?? []).map(rowToSeenGrant);
+}
+
+/**
  * Cuenta cuántas ayudas hay en grants_seen.
  */
 export async function countGrantsSeen(): Promise<number> {
@@ -75,4 +93,32 @@ export async function countGrantsSeen(): Promise<number> {
 
   if (error) throw error;
   return count ?? 0;
+}
+
+/**
+ * Devuelve las ayudas NUEVAS desde la última visita del usuario.
+ * - `sinceIso` null (primera visita): las más recientes de grants_seen.
+ * - `sinceIso` con fecha: solo las detectadas DESPUÉS de esa fecha
+ *   (la "marca de agua" la escribe el dashboard en `profiles.last_seen_at`).
+ */
+export async function getGrantsSeenSince(
+  sinceIso: string | null,
+  limit = 50
+): Promise<SeenGrant[]> {
+  const supabase = await createClient();
+
+  let query = supabase
+    .from("grants_seen")
+    .select("*")
+    .order("first_seen_at", { ascending: false })
+    .limit(limit);
+
+  if (sinceIso) {
+    query = query.gt("first_seen_at", sinceIso);
+  }
+
+  const { data, error } = await query;
+
+  if (error) throw error;
+  return (data ?? []).map(rowToSeenGrant);
 }

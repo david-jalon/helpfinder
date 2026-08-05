@@ -1,77 +1,584 @@
 /* ================================================================
-   Helpfinder — dashboard.module.css (vista mínima, Fase 6)
-   Se ampliará en la Fase 11 con las alertas.
+   Helpfinder — dashboard.module.css (Fase 11 · Fase 12)
+   "Diario de ayudas": registro oficial de noche. Las pestañas son el
+   índice del expediente; el triaje (Seguir/Posible/Denegar) usa los
+   tokens de decisión de globals.css. El color nunca es la única señal:
+   siempre hay etiqueta de texto.
    ================================================================ */
 
 .dash {
   flex: 1;
+  width: 100%;
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 0 1.5rem 4rem;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── cabecera del panel ── */
+
+.header {
   display: flex;
   align-items: center;
-  justify-content: center;
-  padding: 3rem 1.5rem;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.5rem 0;
+  border-bottom: 1px solid var(--hairline);
+  margin-bottom: 2.25rem;
 }
 
-.card {
-  width: 100%;
-  max-width: 480px;
-  background: var(--bg-elev);
-  border: 1px solid var(--hairline);
-  border-radius: 8px;
-  padding: 2rem 1.75rem;
-}
-
-.badge {
-  font-family: var(--font-mono);
-  font-size: 0.62rem;
-  font-weight: 700;
-  letter-spacing: 0.22em;
-  color: var(--sello);
-  text-transform: uppercase;
-  margin-bottom: 0.9rem;
-}
-
-.title {
+.logo {
   font-family: var(--font-display);
   font-weight: 800;
-  font-size: 1.5rem;
+  font-size: 1.05rem;
   letter-spacing: -0.01em;
-  margin-bottom: 0.35rem;
-  text-wrap: balance;
 }
 
-.sub {
-  font-size: 0.95rem;
-  color: var(--fg-muted);
-  margin-bottom: 1.25rem;
+.logoIcon {
+  color: var(--sello);
 }
 
-.note {
+.nav {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+}
+
+.navLink {
   font-size: 0.9rem;
   color: var(--fg-muted);
-  line-height: 1.55;
-  padding: 0.75rem 0.875rem;
-  border-left: 2px solid var(--sello);
-  background: var(--bg-input);
-  margin-bottom: 1.5rem;
+  transition: color 0.15s;
 }
 
-.submit {
-  padding: 0.75rem 1.25rem;
+.navLink:hover {
+  color: var(--fg);
+}
+
+.logout {
   background: transparent;
-  color: var(--fg-muted);
   border: 1px solid var(--hairline);
+  color: var(--fg-muted);
   border-radius: 4px;
-  font-size: 0.9rem;
+  padding: 0.4rem 0.8rem;
+  font-size: 0.85rem;
   transition: color 0.15s, border-color 0.15s;
 }
 
-.submit:hover {
+.logout:hover {
   color: var(--fg);
   border-color: var(--fg-muted);
 }
 
+/* ── cabecera del diario ── */
+
+.head {
+  margin-bottom: 1.75rem;
+}
+
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--sello);
+  margin-bottom: 0.9rem;
+}
+
+.summary {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: clamp(1.7rem, 4.5vw, 2.4rem);
+  letter-spacing: -0.02em;
+  line-height: 1.05;
+  text-wrap: balance;
+  margin-bottom: 0.6rem;
+}
+
+.headSub {
+  color: var(--fg-muted);
+  font-size: 0.95rem;
+}
+
+/* ── pestañas del diario ── */
+
+.tabs {
+  display: flex;
+  gap: 0.25rem;
+  border-bottom: 1px solid var(--hairline);
+  margin-bottom: 2rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.tab {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--fg-muted);
+  padding: 0.6rem 0.7rem;
+  white-space: nowrap;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.tab:hover {
+  color: var(--fg);
+}
+
+.tabActive {
+  color: var(--fg);
+  border-bottom-color: var(--sello);
+}
+
+.tabCount {
+  color: var(--brillo);
+  margin-left: 0.35rem;
+  font-size: 0.7rem;
+}
+
+/* ── aviso de fallback ── */
+
+.notice {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  border-left: 2px solid var(--sello);
+  background: var(--bg-input);
+  padding: 0.75rem 0.875rem;
+  margin-bottom: 2rem;
+}
+
+.noticeLabel {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--brillo);
+  white-space: nowrap;
+}
+
+.noticeText {
+  font-size: 0.85rem;
+  color: var(--fg-muted);
+}
+
+.noticeLink {
+  font-size: 0.85rem;
+  color: var(--fg);
+  border-bottom: 1px solid color-mix(in srgb, var(--sello) 60%, transparent);
+  white-space: nowrap;
+}
+
+.noticeLink:hover {
+  color: var(--sello);
+}
+
+/* ── secciones ── */
+
+.section {
+  margin-top: 2.25rem;
+}
+
+.sectionTitle {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.05rem;
+  letter-spacing: -0.01em;
+  margin-bottom: 0.25rem;
+}
+
+.sectionCount {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--brillo);
+}
+
+/* ── tarjetas ── */
+
+.cardList {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+}
+
+.card {
+  background: var(--bg-elev);
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+  padding: 1.1rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  transition: opacity 0.2s;
+}
+
+.cardDenegada {
+  opacity: 0.55;
+}
+
+.cardTop {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.ref {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  color: var(--fg-muted);
+}
+
+.score,
+.scoreFallback {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  white-space: nowrap;
+}
+
+.score {
+  color: var(--brillo);
+}
+
+.scoreFallback {
+  color: var(--fg-muted);
+}
+
+.cardTitle {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.05rem;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+
+.cardOrg {
+  font-size: 0.85rem;
+  color: var(--fg-muted);
+}
+
+.cardReason {
+  font-size: 0.88rem;
+  color: var(--fg);
+  line-height: 1.5;
+}
+
+.cardActions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 0.35rem;
+}
+
+.link {
+  font-size: 0.85rem;
+  color: var(--fg-muted);
+  border-bottom: 1px solid color-mix(in srgb, var(--fg-muted) 45%, transparent);
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.link:hover {
+  color: var(--fg);
+  border-color: var(--fg);
+}
+
+/* ── triaje: Seguir / Posible / Denegar ── */
+
+.triage {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.triageBtn {
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: transparent;
+  border: 1px solid var(--hairline);
+  border-radius: 4px;
+  padding: 0.35rem 0.6rem;
+  transition: color 0.15s, border-color 0.15s, background-color 0.15s;
+}
+
+/* El color identifica cada decisión de forma permanente (no solo hover). */
+.triageBtn.seguir {
+  color: var(--decis-sigue);
+  border-color: color-mix(in srgb, var(--decis-sigue) 45%, transparent);
+}
+
+.triageBtn.posible {
+  color: var(--decis-posible);
+  border-color: color-mix(in srgb, var(--decis-posible) 45%, transparent);
+}
+
+.triageBtn.denegada {
+  color: var(--decis-denegada);
+  border-color: color-mix(in srgb, var(--decis-denegada) 45%, transparent);
+}
+
+.triageBtn.seguir:hover {
+  background: var(--decis-sigue-soft);
+  border-color: var(--decis-sigue);
+}
+
+.triageBtn.posible:hover {
+  background: var(--decis-posible-soft);
+  border-color: var(--decis-posible);
+}
+
+.triageBtn.denegada:hover {
+  background: var(--decis-denegada-soft);
+  border-color: var(--decis-denegada);
+}
+
+.triageBtn.seguir.active {
+  background: var(--decis-sigue-soft);
+  border-color: var(--decis-sigue);
+}
+
+.triageBtn.posible.active {
+  background: var(--decis-posible-soft);
+  border-color: var(--decis-posible);
+}
+
+.triageBtn.denegada.active {
+  background: var(--decis-denegada-soft);
+  border-color: var(--decis-denegada);
+}
+
+/* ── lista del resto (excluidas / otras pestañas) ── */
+
+.excludedCard {
+  background: var(--bg-elev);
+  border: 1px solid var(--hairline);
+  border-left: 2px solid var(--brillo);
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+}
+
+.excludedRemark {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--brillo);
+  margin-bottom: 0.25rem;
+}
+
+.excludedRemarkText {
+  font-size: 0.85rem;
+  color: var(--fg-muted);
+  margin-bottom: 0.75rem;
+}
+
+.excludedList {
+  list-style: none;
+}
+
+.excludedRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.excludedRow:last-child {
+  border-bottom: none;
+  padding-bottom: 0.25rem;
+}
+
+.excludedInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.excludedTitle {
+  font-size: 0.9rem;
+}
+
+/* ── toast de deshacer ── */
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 1.5rem;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  max-width: min(92vw, 560px);
+  background: var(--bg-elev);
+  border: 1px solid var(--hairline);
+  border-left: 3px solid var(--decis-denegada);
+  padding: 0.7rem 1rem;
+  border-radius: 6px;
+  font-size: 0.88rem;
+  z-index: 50;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+}
+
+.toast span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.toastAction {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: transparent;
+  border: 1px solid var(--hairline);
+  color: var(--fg);
+  border-radius: 4px;
+  padding: 0.32rem 0.6rem;
+  white-space: nowrap;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.toastAction:hover {
+  color: var(--sello);
+  border-color: color-mix(in srgb, var(--sello) 55%, transparent);
+}
+
+/* ── estados vacíos y centrados ── */
+
+.center {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 4rem 1rem;
+}
+
+.centerTitle {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 1.6rem;
+  letter-spacing: -0.01em;
+  margin-bottom: 0.5rem;
+  text-wrap: balance;
+}
+
+.centerSub {
+  color: var(--fg-muted);
+  max-width: 420px;
+  margin-bottom: 1.5rem;
+}
+
+.cta {
+  background: var(--sello);
+  color: var(--bg);
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 0.95rem;
+  padding: 0.8rem 1.25rem;
+  border-radius: 4px;
+  transition: background 0.15s;
+}
+
+.cta:hover {
+  background: var(--sello-hover);
+}
+
+.loading {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  color: var(--fg-muted);
+}
+
+.empty {
+  border: 1px dashed var(--hairline);
+  border-radius: 8px;
+  padding: 2rem 1.5rem;
+  text-align: center;
+}
+
+.emptyTitle {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.1rem;
+  margin-bottom: 0.4rem;
+}
+
+.emptyText {
+  font-size: 0.9rem;
+  color: var(--fg-muted);
+  max-width: 460px;
+  margin: 0 auto;
+}
+
+/* ── reduced motion ── */
+
 @media (prefers-reduced-motion: reduce) {
-  .submit {
+  .card,
+  .link,
+  .navLink,
+  .logout,
+  .triageBtn,
+  .tab,
+  .toastAction,
+  .cta {
     transition: none;
+  }
+}
+
+/* ── móvil ── */
+
+@media (max-width: 560px) {
+  .dash {
+    padding: 0 1.1rem 3rem;
+  }
+
+  .header {
+    flex-wrap: wrap;
+  }
+
+  .card {
+    padding: 1rem;
+  }
+
+  .excludedCard {
+    padding: 0.875rem 1rem;
+  }
+
+  .cardTop {
+    flex-direction: column;
+    gap: 0.2rem;
+  }
+
+  .excludedRow {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
   }
 }

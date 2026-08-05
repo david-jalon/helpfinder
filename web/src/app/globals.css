@@ -16,6 +16,14 @@
   --brillo: #f5b301;
   --hairline: color-mix(in srgb, var(--fg) 12%, transparent);
 
+  /* triaje del diario (Fase 12): el texto siempre acompaña al color */
+  --decis-sigue: #35c26b;
+  --decis-sigue-soft: color-mix(in srgb, var(--decis-sigue) 18%, transparent);
+  --decis-posible: var(--brillo);
+  --decis-posible-soft: color-mix(in srgb, var(--decis-posible) 18%, transparent);
+  --decis-denegada: #e05252;
+  --decis-denegada-soft: color-mix(in srgb, var(--decis-denegada) 16%, transparent);
+
   /* superficies */
   --bg-app: var(--bg);
   --fg-app: var(--fg);
