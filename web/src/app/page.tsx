@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useState, type FormEvent } from "react";
+import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import AppHeader from "@/components/app-header";
 import type { GrantItem } from "@/lib/domain/grants";
 import styles from "./page.module.css";
@@ -117,6 +117,64 @@ export default function Home() {
   const [today, setToday] = useState<{ day: string; year: string } | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState<boolean | null>(null);
 
+  // ── seguir una ayuda desde la landing (Fase 14) ──
+  const [followingIds, setFollowingIds] = useState<Set<string>>(new Set());
+  const [addedIds, setAddedIds] = useState<Set<string>>(new Set());
+  const [toast, setToast] = useState<string | null>(null);
+  const toastTimer = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (toastTimer.current) window.clearTimeout(toastTimer.current);
+    };
+  }, []);
+
+  function showToast(message: string) {
+    setToast(message);
+    if (toastTimer.current) window.clearTimeout(toastTimer.current);
+    toastTimer.current = window.setTimeout(() => setToast(null), 4000);
+  }
+
+  async function handleFollow(grant: GrantItem) {
+    if (followingIds.has(grant.id) || addedIds.has(grant.id)) return;
+
+    setFollowingIds((prev) => new Set(prev).add(grant.id));
+
+    try {
+      const res = await fetch("/api/follow", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: grant.id,
+          title: grant.title,
+          organization: grant.organization,
+          sourceUrl: grant.sourceUrl,
+        }),
+      });
+
+      if (res.status === 401) {
+        window.location.assign("/login?next=/");
+        return;
+      }
+
+      const json = (await res.json()) as { ok: boolean; error?: string };
+      if (!res.ok || !json.ok) {
+        throw new Error(json.error ?? "No se pudo añadir la ayuda");
+      }
+
+      setAddedIds((prev) => new Set(prev).add(grant.id));
+      showToast("Añadido a tu perfil");
+    } catch {
+      showToast("No se pudo añadir. Prueba otra vez.");
+    } finally {
+      setFollowingIds((prev) => {
+        const copy = new Set(prev);
+        copy.delete(grant.id);
+        return copy;
+      });
+    }
+  }
+
   useEffect(() => {
     const timer = window.setTimeout(() => {
       const d = new Date();
@@ -128,12 +186,14 @@ export default function Home() {
     return () => window.clearTimeout(timer);
   }, []);
 
-  // Comprobar si hay sesión
+  // Comprobar si hay sesión (Fase 14: /api/auth/status queda fuera del
+  // proxy, así en anónimo responde 401 limpio y el botón «Seguir» solo
+  // sale cuando de verdad hay sesión)
   useEffect(() => {
     let mounted = true;
     async function checkSession() {
       try {
-        const res = await fetch("/api/profile", { cache: "no-store" });
+        const res = await fetch("/api/auth/status", { cache: "no-store" });
         if (mounted) {
           setIsLoggedIn(res.ok);
         }
@@ -472,16 +532,36 @@ export default function Home() {
                     {grant.publicationDate && (
                       <span>PUBLICADA · {grant.publicationDate}</span>
                     )}
-                    {grant.sourceUrl && (
-                      <a
-                        className={styles.resultLink}
-                        href={grant.sourceUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        Ver en BDNS →
-                      </a>
-                    )}
+                    <div className={styles.resultMetaActions}>
+                      {grant.sourceUrl && (
+                        <a
+                          className={styles.resultLink}
+                          href={grant.sourceUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          Ver en BDNS →
+                        </a>
+                      )}
+                      {isLoggedIn && (
+                        <button
+                          type="button"
+                          className={`${styles.followBtn} ${
+                            addedIds.has(grant.id) ? styles.followBtnAdded : ""
+                          }`}
+                          disabled={
+                            addedIds.has(grant.id) || followingIds.has(grant.id)
+                          }
+                          onClick={() => handleFollow(grant)}
+                        >
+                          {addedIds.has(grant.id)
+                            ? "Añadido ✓"
+                            : followingIds.has(grant.id)
+                            ? "Añadiendo…"
+                            : "Seguir"}
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </li>
               ))}
@@ -541,6 +621,13 @@ export default function Home() {
           </a>
         </p>
       </footer>
+
+      {/* ── aviso de «seguir» (Fase 14) ── */}
+      {toast && (
+        <div className={styles.toast} role="status">
+          {toast}
+        </div>
+      )}
     </>
   );
 }

@@ -14,6 +14,8 @@ const DOCUMENTED_ROUTE_SEGMENTS: string[][] = [
   ["profile"],
   ["dashboard"],
   ["alerts", "[id]"],
+  ["follow"],
+  ["auth", "status"],
   ["cron", "daily"],
 ];
 

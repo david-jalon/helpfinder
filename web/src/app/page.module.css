@@ -317,6 +317,69 @@
   color: var(--sello);
 }
 
+/* ── seguir desde la landing (Fase 14) ── */
+
+.resultMetaActions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.followBtn {
+  background: transparent;
+  border: 1px solid var(--sello);
+  color: var(--sello);
+  border-radius: 4px;
+  padding: 0.32rem 0.7rem;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.followBtn:hover:not(:disabled) {
+  background: var(--sello);
+  color: var(--bg);
+}
+
+.followBtn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.followBtnAdded {
+  color: var(--brillo);
+  border-color: var(--brillo);
+}
+
+.followBtnAdded:hover:not(:disabled) {
+  background: var(--brillo);
+  color: var(--bg);
+  border-color: var(--brillo);
+}
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 1.5rem;
+  transform: translateX(-50%);
+  z-index: 50;
+  max-width: min(92vw, 480px);
+  background: var(--bg-elev);
+  border: 1px solid var(--hairline);
+  border-left: 3px solid var(--brillo);
+  padding: 0.7rem 1rem;
+  border-radius: 6px;
+  font-size: 0.88rem;
+  color: var(--fg);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+  text-align: center;
+}
+
 /* ── states ── */
 
 .empty,
@@ -478,6 +541,7 @@
   .clearBtn,
   .resultCard,
   .resultLink,
+  .followBtn,
   .headerLink,
   .headerLinkPrimary {
     transition: none;

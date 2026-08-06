@@ -1,4 +1,5 @@
 import type { Profile } from "@/lib/domain/profile";
+import type { FollowGrantInput } from "@/lib/dashboard/follow";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -171,4 +172,51 @@ export async function setAlertDecision(
     .eq("id", alertId);
 
   if (error) throw error;
+}
+
+/**
+ * «Seguir» una convocatoria desde la landing (Fase 14).
+ *
+ * Dos escrituras en orden, porque `user_alerts.grant_id` tiene clave
+ * foránea hacia `grants_seen(num_convocatoria)`:
+ *  1. Guardar la convocatoria en `grants_seen` (dato público BDNS; puede
+ *     que el cron aún no la haya detectado).
+ *  2. Guardar la alerta del usuario con `decision='seguir'`. El upsert
+ *     por (user_id, grant_id) es idempotente: si ya existía como
+ *     pendiente o denegada, pasa a En seguimiento (no se duplica).
+ */
+export async function followGrantForUser(
+  userId: string,
+  grant: FollowGrantInput
+): Promise<void> {
+  const supabase = await createClient();
+
+  const { error: grantError } = await supabase
+    .from("grants_seen")
+    .upsert(
+      {
+        num_convocatoria: grant.id,
+        title: grant.title,
+        organization: grant.organization,
+        source_url: grant.sourceUrl,
+      },
+      { onConflict: "num_convocatoria" }
+    );
+
+  if (grantError) throw grantError;
+
+  const { error: alertError } = await supabase
+    .from("user_alerts")
+    .upsert(
+      {
+        user_id: userId,
+        grant_id: grant.id,
+        bucket: "matched",
+        ai_status: "pending",
+        decision: "seguir",
+      },
+      { onConflict: "user_id,grant_id" }
+    );
+
+  if (alertError) throw alertError;
 }
