@@ -362,6 +362,47 @@
   border-color: var(--brillo);
 }
 
+/* ── paginación (Fase 15) ── */
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-top: 1.75rem;
+}
+
+.pageBtn {
+  padding: 0.55rem 1rem;
+  background: transparent;
+  color: var(--fg);
+  border: 1px solid var(--hairline);
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, opacity 0.15s;
+}
+
+.pageBtn:hover:not(:disabled) {
+  color: var(--sello);
+  border-color: var(--sello);
+}
+
+.pageBtn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.pageIndicator {
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  color: var(--fg-muted);
+  letter-spacing: 0.04em;
+}
+
 .toast {
   position: fixed;
   left: 50%;
@@ -539,6 +580,7 @@
   .fieldSelect,
   .searchBtn,
   .clearBtn,
+  .pageBtn,
   .resultCard,
   .resultLink,
   .followBtn,

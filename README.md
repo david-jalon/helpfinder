@@ -62,36 +62,6 @@ motivo de la regla; nunca se rompe.
 
 Todo en planes gratuitos, sin coste de mantenimiento.
 
-## Empezar en local
-
-Requisitos: Node.js 20 o superior y un proyecto de Supabase.
-
-1. Crea un proyecto en [Supabase](https://supabase.com) y copia la URL y la
-   clave anon.
-2. En `web/supabase/schema.sql` está el esquema de las tablas
-   (`profiles`, `grants_seen`, `user_alerts`). Ejecútalo una vez en el SQL
-   Editor de Supabase.
-3. Copia `web/.env.example` a `web/.env.local` y rellena las variables.
-
-   ```bash
-   cd web
-   cp .env.example .env.local
-   npm install
-   npm run dev
-   ```
-
-Abre `http://localhost:3000`. El buscador funciona sin configurar nada más;
-para probar el panel necesitas registrarte y añadir tu key de Gemini en el
-onboarding.
-
-Tests y comprobaciones:
-
-```bash
-npm run test
-npm run lint
-npm run build
-```
-
 ## Estructura del repositorio
 
 ```

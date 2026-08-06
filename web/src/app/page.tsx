@@ -23,6 +23,8 @@ const ORDER_OPTIONS = [
   { value: "numeroConvocatoria", label: "Nº convocatoria" },
 ];
 
+const PAGE_SIZE = 10;
+
 const DAYS = ["DOM", "LUN", "MAR", "MIÉ", "JUE", "VIE", "SÁB"];
 const MONTHS = ["ENE", "FEB", "MAR", "ABR", "MAY", "JUN", "JUL", "AGO", "SEP", "OCT", "NOV", "DIC"];
 
@@ -105,6 +107,7 @@ export default function Home() {
   const [fechaHasta, setFechaHasta] = useState("");
   const [order, setOrder] = useState("fechaRecepcion");
   const [direccion, setDireccion] = useState<"asc" | "desc">("desc");
+  const [page, setPage] = useState(1);
 
   // ── datos ──
   const [regions, setRegions] = useState<RegionOption[]>([]);
@@ -235,7 +238,8 @@ export default function Home() {
       setErrorMsg("");
 
       try {
-        const params = new URLSearchParams({ pageSize: "10" });
+        const params = new URLSearchParams({ pageSize: String(PAGE_SIZE) });
+        params.set("page", String(page));
         if (query.trim()) params.set("q", query.trim());
         if (tipoAdmin) params.set("tipoAdministracion", tipoAdmin);
         if (typeof regionId === "number") params.set("regionId", String(regionId));
@@ -267,7 +271,7 @@ export default function Home() {
 
     void search();
     return () => controller.abort();
-  }, [query, tipoAdmin, regionId, fechaDesde, fechaHasta, order, direccion]);
+  }, [query, tipoAdmin, regionId, fechaDesde, fechaHasta, order, direccion, page]);
 
   function handleSearch(e: FormEvent) {
     e.preventDefault();
@@ -284,6 +288,7 @@ export default function Home() {
       setRegionIdInput("");
     }
 
+    setPage(1);
     setQuery(queryInput);
     setTipoAdmin(tipoAdminInput);
     setRegionId(regionIdInput ? Number(regionIdInput) : undefined);
@@ -310,8 +315,13 @@ export default function Home() {
     setOrder("fechaRecepcion");
     setDireccion("desc");
     setErrorMsg("");
+    setPage(1);
     setState("idle");
   }
+
+  const hasResults = results.length > 0;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const showResults = hasResults && (state === "done" || state === "loading");
 
   return (
     <>
@@ -508,7 +518,7 @@ export default function Home() {
           </p>
         )}
 
-        {state === "done" && results.length > 0 && (
+        {showResults && (
           <>
             <p className={styles.resultsCount}>
               <strong>{total}</strong> resultado{total !== 1 ? "s" : ""}
@@ -566,6 +576,32 @@ export default function Home() {
                 </li>
               ))}
             </ul>
+
+            {totalPages > 1 && (
+              <nav className={styles.pagination} aria-label="Paginación de resultados">
+                <button
+                  type="button"
+                  className={styles.pageBtn}
+                  disabled={page <= 1 || state === "loading"}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                >
+                  ← Anterior
+                </button>
+                <span className={styles.pageIndicator}>
+                  {state === "loading"
+                    ? "Cargando…"
+                    : `Página ${page} de ${totalPages}`}
+                </span>
+                <button
+                  type="button"
+                  className={styles.pageBtn}
+                  disabled={page >= totalPages || state === "loading"}
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                >
+                  Siguiente →
+                </button>
+              </nav>
+            )}
           </>
         )}
 
