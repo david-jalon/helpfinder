@@ -18,6 +18,25 @@
 
 /* ── enlaces del header (el header vive en components) ── */
 
+.guideLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.9rem;
+  color: var(--fg-muted);
+  transition: color 0.15s;
+}
+
+.guideLink:hover {
+  color: var(--fg);
+}
+
+.guideIcon {
+  color: var(--brillo);
+  display: flex;
+  align-items: center;
+}
+
 .navLink {
   font-size: 0.9rem;
   color: var(--fg-muted);
@@ -515,6 +534,7 @@
 @media (prefers-reduced-motion: reduce) {
   .card,
   .link,
+  .guideLink,
   .navLink,
   .logout,
   .triageBtn,

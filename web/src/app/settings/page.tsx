@@ -321,6 +321,9 @@ export default function SettingsPage() {
                 </a>
                 . Se usa solo en servidor, nunca se comparte.
               </p>
+              <Link className={styles.guideLink} href="/guia">
+                ¿Cómo obtengo mi key? Ver la guía
+              </Link>
             </div>
           </div>
 

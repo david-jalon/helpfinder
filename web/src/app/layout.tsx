@@ -20,9 +20,9 @@ const courierPrime = Courier_Prime({
 });
 
 export const metadata: Metadata = {
-  title: "helpfinder — ayudas públicas en España",
+  title: "Helpfinder — Ayudas públicas en España",
   description:
-    "encuentra las subvenciones y ayudas públicas que te corresponden. Buscador gratuito de la BDNS.",
+    "Encuentra las subvenciones y ayudas públicas que te corresponden. Buscador gratuito de la BDNS.",
 };
 
 export default function RootLayout({

@@ -54,6 +54,7 @@ export async function proxy(request: NextRequest) {
     pathname.startsWith("/dashboard") ||
     pathname.startsWith("/onboarding") ||
     pathname.startsWith("/settings") ||
+    pathname.startsWith("/guia") ||
     pathname.startsWith("/api/profile") ||
     pathname.startsWith("/api/dashboard") ||
     pathname.startsWith("/api/alerts");
@@ -82,6 +83,7 @@ export const config = {
     "/dashboard/:path*",
     "/onboarding/:path*",
     "/settings/:path*",
+    "/guia/:path*",
     "/api/profile/:path*",
     "/api/dashboard/:path*",
     "/api/alerts/:path*",

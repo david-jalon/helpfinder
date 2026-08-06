@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import AppHeader from "@/components/app-header";
+import Lightbulb from "@/components/lightbulb";
 import { logout } from "@/lib/supabase/actions";
 import {
   buildTabSummary,
@@ -105,6 +106,10 @@ export default function DashboardPage() {
   return (
     <>
       <AppHeader>
+        <a href="/guia" className={styles.guideLink}>
+          <Lightbulb size={16} className={styles.guideIcon} />
+          Guía
+        </a>
         <a href="/settings" className={styles.navLink}>
           Mi perfil
         </a>
