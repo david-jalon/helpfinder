@@ -52,7 +52,14 @@
 
 @media (max-width: 560px) {
   .inner {
+    flex-wrap: wrap;
     padding: 0.8rem 1.1rem;
+    row-gap: 0.5rem;
+  }
+
+  .nav {
+    margin-left: auto;
+    gap: 0.75rem;
   }
 }
 

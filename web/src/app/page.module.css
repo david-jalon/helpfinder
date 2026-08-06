@@ -433,6 +433,42 @@
   }
 }
 
+/* ── tarjeta de resultado en móvil: nº arriba, título ancho ── */
+
+@media (max-width: 560px) {
+  .resultCard {
+    padding: 1rem 1.1rem;
+  }
+
+  .resultTop {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .resultRef {
+    display: inline-flex;
+    align-self: flex-start;
+    align-items: baseline;
+    gap: 0.5rem;
+    min-width: 0;
+    padding: 0.32rem 0.55rem;
+    text-align: left;
+  }
+
+  .resultRefNum {
+    line-height: 1.2;
+  }
+
+  .resultRefLabel {
+    margin-top: 0;
+  }
+
+  .resultTitle {
+    font-size: 1.05rem;
+    line-height: 1.4;
+  }
+}
+
 /* ── reduced motion ── */
 
 @media (prefers-reduced-motion: reduce) {

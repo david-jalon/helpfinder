@@ -88,3 +88,15 @@ input {
   outline: 2px solid var(--sello);
   outline-offset: 2px;
 }
+
+/* ── móvil: sin zoom automático de iOS ──
+   iOS Safari amplía la página al enfocar un campo con font-size < 16px.
+   En pantallas pequeñas los campos pasan a 16px para evitarlo. */
+
+@media (max-width: 600px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
