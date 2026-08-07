@@ -13,6 +13,7 @@ export default function RegisterPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
   const [sending, setSending] = useState(false);
@@ -24,6 +25,11 @@ export default function RegisterPage() {
 
     if (password.length < 6) {
       setError("La contraseña debe tener al menos 6 caracteres.");
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setError("Las contraseñas no coinciden.");
       return;
     }
 
@@ -104,16 +110,31 @@ export default function RegisterPage() {
               <label className={styles.label} htmlFor="password">
                 Contraseña
               </label>
-              <input
-                id="password"
-                className={styles.input}
-                type="password"
-                autoComplete="new-password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-            </div>
+                <input
+                  id="password"
+                  className={styles.input}
+                  type="password"
+                  autoComplete="new-password"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+              </div>
+
+              <div className={styles.field}>
+                <label className={styles.label} htmlFor="confirm-password">
+                  Confirmar contraseña
+                </label>
+                <input
+                  id="confirm-password"
+                  className={styles.input}
+                  type="password"
+                  autoComplete="new-password"
+                  required
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                />
+              </div>
 
             {error && <p className={styles.error}>{error}</p>}
             {info && <p className={styles.info}>{info}</p>}
