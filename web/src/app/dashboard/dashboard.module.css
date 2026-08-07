@@ -390,9 +390,8 @@
 
 .excludedRow {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
+  flex-direction: column;
+  gap: 0.5rem;
   padding: 0.75rem 0;
   border-bottom: 1px solid var(--hairline);
 }
@@ -400,6 +399,13 @@
 .excludedRow:last-child {
   border-bottom: none;
   padding-bottom: 0.25rem;
+}
+
+.excludedActions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
 }
 
 .excludedInfo {
@@ -582,11 +588,5 @@
   .cardTop {
     flex-direction: column;
     gap: 0.2rem;
-  }
-
-  .excludedRow {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.5rem;
   }
 }

@@ -325,6 +325,8 @@ function Ready({ data }: { data: DashboardData }) {
                         <span className={styles.excludedTitle}>
                           {alert.title}
                         </span>
+                      </div>
+                      <div className={styles.excludedActions}>
                         {alert.sourceUrl && (
                           <a
                             className={styles.link}
@@ -335,8 +337,8 @@ function Ready({ data }: { data: DashboardData }) {
                             Ver en BDNS →
                           </a>
                         )}
+                        <Triage alert={alert} onTriage={applyDecision} />
                       </div>
-                      <Triage alert={alert} onTriage={applyDecision} />
                     </li>
                   ))}
                 </ul>
