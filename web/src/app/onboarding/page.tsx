@@ -1,7 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, type FormEvent } from "react";
+import { useState, type KeyboardEvent } from "react";
 import type { ProfileType, Colectivo, Region } from "@/lib/domain/profile";
 import styles from "./onboarding.module.css";
 
@@ -87,15 +88,26 @@ export default function OnboardingPage() {
     return true;
   }
 
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
-    setError("");
-
-    if (!geminiApiKey.trim()) {
-      setError("Necesitas tu key de Gemini para que la IA funcione. Consíguela gratis en ai.google.dev.");
-      return;
+  // Enter dentro de un input no debe enviar el formulario: el perfil solo
+  // se guarda pulsando explícitamente "Guardar perfil".
+  function handleKeyDown(e: KeyboardEvent<HTMLFormElement>) {
+    if (
+      e.key === "Enter" &&
+      e.target instanceof HTMLInputElement
+    ) {
+      e.preventDefault();
     }
+  }
 
+  // El formulario nunca se envía por sí mismo (ni Enter, ni el autofill del
+  // navegador): este onSubmit solo neutraliza cualquier envío implícito.
+  // El perfil se guarda únicamente desde el botón "Guardar perfil".
+  function handleSubmit(e: { preventDefault: () => void }) {
+    e.preventDefault();
+  }
+
+  async function saveProfile() {
+    setError("");
     setSending(true);
 
     try {
@@ -107,7 +119,7 @@ export default function OnboardingPage() {
           colectivos: profileType === "persona" ? colectivos : [],
           regiones,
           keywords: keywords.trim(),
-          geminiApiKey: geminiApiKey.trim(),
+          ...(geminiApiKey.trim() && { geminiApiKey: geminiApiKey.trim() }),
         }),
       });
 
@@ -152,7 +164,7 @@ export default function OnboardingPage() {
           ))}
         </div>
 
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} onKeyDown={handleKeyDown} autoComplete="off">
           {/* ── Paso 1: Tipo de perfil ── */}
           {step === 1 && (
             <div className={styles.step}>
@@ -256,6 +268,7 @@ export default function OnboardingPage() {
                   id="keywords"
                   className={styles.input}
                   type="text"
+                  autoComplete="off"
                   placeholder="ej. innovación, digitalización, empleo juvenil"
                   value={keywords}
                   onChange={(e) => setKeywords(e.target.value)}
@@ -270,13 +283,14 @@ export default function OnboardingPage() {
                   id="gemini-key"
                   className={styles.input}
                   type="password"
-                  placeholder="AIza..."
-                  required
+                  autoComplete="off"
+                  placeholder="Apikey de Google Gemini"
                   value={geminiApiKey}
                   onChange={(e) => setGeminiApiKey(e.target.value)}
                 />
                 <p className={styles.hint}>
-                  Gratuita en{" "}
+                  Opcional por ahora: lo necesitarás más adelante para que la IA
+                  puntúe tus ayudas. Gratuita en{" "}
                   <a
                     href="https://aistudio.google.com/apikey"
                     target="_blank"
@@ -286,6 +300,14 @@ export default function OnboardingPage() {
                   </a>
                   . Se usa solo en servidor, nunca se comparte.
                 </p>
+                <Link
+                  className={styles.guideLink}
+                  href="/guia"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  ¿Cómo obtengo mi key? Ver la guía
+                </Link>
               </div>
             </div>
           )}
@@ -316,9 +338,10 @@ export default function OnboardingPage() {
               </button>
             ) : (
               <button
-                type="submit"
+                type="button"
                 className={styles.submit}
                 disabled={sending}
+                onClick={saveProfile}
               >
                 {sending ? "Guardando..." : "Guardar perfil"}
               </button>

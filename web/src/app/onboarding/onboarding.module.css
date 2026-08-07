@@ -290,6 +290,20 @@
   line-height: 1.4;
 }
 
+.guideLink {
+  display: inline-block;
+  margin-top: 0.6rem;
+  font-size: 0.8rem;
+  color: var(--sello);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  transition: color 0.15s;
+}
+
+.guideLink:hover {
+  color: var(--sello-hover);
+}
+
 /* ── reduced motion ── */
 
 @media (prefers-reduced-motion: reduce) {
@@ -297,7 +311,8 @@
   .typeOption,
   .checkItem,
   .submit,
-  .back {
+  .back,
+  .guideLink {
     transition: none;
   }
 }
