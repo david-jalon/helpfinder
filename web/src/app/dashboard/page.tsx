@@ -242,9 +242,9 @@ function Ready({ data }: { data: DashboardData }) {
       {/* ── cabecera del diario ── */}
       <section className={styles.head}>
         <p className={styles.eyebrow}>Expediente</p>
-        <h1 className={styles.summary}>Tu diario de ayudas</h1>
+        <h1 className={styles.summary}>Resumen diario de ayudas</h1>
         <p className={styles.headSub}>
-          Lo nuevo de hoy entra por Pendientes; tú decides a dónde va.
+          Lo nuevo de hoy entra por la pestaña "Pendientes", tú decides a dónde va.
         </p>
       </section>
 
@@ -315,8 +315,8 @@ function Ready({ data }: { data: DashboardData }) {
               <div className={styles.excludedCard}>
                 <p className={styles.excludedRemark}>Revisa por si acaso</p>
                 <p className={styles.excludedRemarkText}>
-                  Ayudas que no entraron en «Para ti» porque son de otra región;
-                  a veces se escapa una buena.
+                  Ayudas que no entraron en «Para ti». 
+                  A veces se escapa alguna buena.
                 </p>
                 <ul className={styles.excludedList}>
                   {excluded.map((alert) => (

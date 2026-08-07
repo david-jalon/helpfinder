@@ -96,8 +96,6 @@ export default function Home() {
   const [regionIdInput, setRegionIdInput] = useState<string>("");
   const [fechaDesdeInput, setFechaDesdeInput] = useState("");
   const [fechaHastaInput, setFechaHastaInput] = useState("");
-  const [orderInput, setOrderInput] = useState("fechaRecepcion");
-  const [direccionInput, setDireccionInput] = useState<"asc" | "desc">("desc");
 
   // ── filtros aplicados ──
   const [query, setQuery] = useState("");
@@ -294,8 +292,18 @@ export default function Home() {
     setRegionId(regionIdInput ? Number(regionIdInput) : undefined);
     setFechaDesde(fechaDesdeInput);
     setFechaHasta(fechaHastaInput);
-    setOrder(orderInput);
-    setDireccion(direccionInput);
+  }
+
+  // Orden y dirección se aplican al instante, sin pulsar "Buscar ayudas":
+  // al cambiar se refresca la búsqueda desde la primera página.
+  function handleOrderChange(value: string) {
+    setOrder(value);
+    setPage(1);
+  }
+
+  function handleDireccionChange(value: "asc" | "desc") {
+    setDireccion(value);
+    setPage(1);
   }
 
   function handleClear() {
@@ -304,8 +312,6 @@ export default function Home() {
     setRegionIdInput("");
     setFechaDesdeInput("");
     setFechaHastaInput("");
-    setOrderInput("fechaRecepcion");
-    setDireccionInput("desc");
 
     setQuery("");
     setTipoAdmin("");
@@ -322,6 +328,8 @@ export default function Home() {
   const hasResults = results.length > 0;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const showResults = hasResults && (state === "done" || state === "loading");
+  // Los controles de orden/dirección solo aparecen tras hacer una búsqueda.
+  const showSortControls = state === "done" || state === "loading" || state === "error";
 
   return (
     <>
@@ -369,7 +377,7 @@ export default function Home() {
             {/* Fila 1: texto, administración, región */}
             <div className={styles.filtersRow}>
               <div className={`${styles.field} ${styles.fieldWide}`}>
-                <label htmlFor="q" className={styles.fieldLabel}>Texto</label>
+                <label htmlFor="q" className={styles.fieldLabel}>Palabras clave</label>
                 <input
                   id="q"
                   className={`${styles.fieldInput} ${styles.queryInput}`}
@@ -457,32 +465,36 @@ export default function Home() {
                 />
               </div>
 
-              <div className={styles.field}>
-                <label htmlFor="order" className={styles.fieldLabel}>Ordenar por</label>
-                <select
-                  id="order"
-                  className={styles.fieldSelect}
-                  value={orderInput}
-                  onChange={(e) => setOrderInput(e.target.value)}
-                >
-                  {ORDER_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>{opt.label}</option>
-                  ))}
-                </select>
-              </div>
+              {showSortControls && (
+                <>
+                  <div className={styles.field}>
+                    <label htmlFor="order" className={styles.fieldLabel}>Ordenar por</label>
+                    <select
+                      id="order"
+                      className={styles.fieldSelect}
+                      value={order}
+                      onChange={(e) => handleOrderChange(e.target.value)}
+                    >
+                      {ORDER_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                      ))}
+                    </select>
+                  </div>
 
-              <div className={styles.field}>
-                <label htmlFor="direccion" className={styles.fieldLabel}>Dirección</label>
-                <select
-                  id="direccion"
-                  className={styles.fieldSelect}
-                  value={direccionInput}
-                  onChange={(e) => setDireccionInput(e.target.value as "asc" | "desc")}
-                >
-                  <option value="desc">Descendente</option>
-                  <option value="asc">Ascendente</option>
-                </select>
-              </div>
+                  <div className={styles.field}>
+                    <label htmlFor="direccion" className={styles.fieldLabel}>Dirección</label>
+                    <select
+                      id="direccion"
+                      className={styles.fieldSelect}
+                      value={direccion}
+                      onChange={(e) => handleDireccionChange(e.target.value as "asc" | "desc")}
+                    >
+                      <option value="desc">Descendente</option>
+                      <option value="asc">Ascendente</option>
+                    </select>
+                  </div>
+                </>
+              )}
             </div>
 
             <div className={styles.actions} style={{ marginTop: "1rem" }}>
