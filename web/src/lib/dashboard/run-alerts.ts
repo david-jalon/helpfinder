@@ -25,7 +25,7 @@
 
 import type { GrantItem } from "@/lib/domain/grants";
 import type { Profile } from "@/lib/domain/profile";
-import { matchGrants, type MatchOutcome } from "@/lib/matching/matcher";
+import { matchGrant, matchGrants, type MatchOutcome } from "@/lib/matching/matcher";
 import {
   scoreGrantsForUser,
   type ScoreResult,
@@ -35,6 +35,7 @@ import { getGrantsSeenSince, type SeenGrant } from "@/lib/grants/feed";
 import { upsertAlerts, upsertProfile, type AlertUpsertInput } from "@/lib/db";
 import {
   isAlertDecision,
+  isNoiseAlert,
   persistedAlertDTO,
   mergeAlertLists,
   buildTabSummary,
@@ -45,6 +46,13 @@ import {
   type PersistedAlertRow,
   type TabSummary,
 } from "@/lib/dashboard/triage";
+
+export type RunAlertsResult = {
+  /** Solo las alertas frescas de ESTA visita (las persistidas se fusionan en la ruta). */
+  alerts: AlertDTO[];
+  aiStatus: "ok" | "fallback" | null;
+  aiMessage: string | null;
+};
 
 export type {
   AlertBucket,
@@ -57,16 +65,10 @@ export type {
 
 export {
   isAlertDecision,
+  isNoiseAlert,
   persistedAlertDTO,
   mergeAlertLists,
   buildTabSummary,
-};
-
-export type RunAlertsResult = {
-  /** Solo las alertas frescas de ESTA visita (las persistidas se fusionan en la ruta). */
-  alerts: AlertDTO[];
-  aiStatus: "ok" | "fallback" | null;
-  aiMessage: string | null;
 };
 
 /* ------------------------------------------------------------------ */
@@ -140,6 +142,7 @@ export function buildAlertDTOs(
             : globalAiStatus === "fallback"
               ? "fallback"
               : "pending",
+      rule: match.rule,
       decision: null,
     };
   };
@@ -149,6 +152,71 @@ export function buildAlertDTOs(
     ...outcome.maybe.map((m) => makeDto(m, "maybe")),
     ...outcome.excluded.map((m) => makeDto(m, "excluded")),
   ];
+}
+
+/* ------------------------------------------------------------------ */
+/*  Puro: re-bucketeo retroactivo de alertas persistidas               */
+/* ------------------------------------------------------------------ */
+
+export type RebucketUpdate = {
+  grantId: string;
+  bucket: AlertBucket;
+  matchReasons: string[];
+};
+
+export type RebucketResult = {
+  /** DTOs con el bucket y motivos recalculados (conservan triaje y score). */
+  alerts: AlertDTO[];
+  /** Cambios a escribir en `user_alerts` (solo los que cambian). */
+  updates: RebucketUpdate[];
+};
+
+/**
+ * Re-clasifica las alertas persistidas con el matcher ACTUAL, de modo que
+ * los cambios de lógica o de perfil se propaguen a lo ya guardado.
+ *
+ * Conserva `decision`, `score`, `ai_reason` y `ai_status` de la fila; solo
+ * recalcula `bucket` y `match_reasons` (que es lo que decide el UI).
+ * `rule` se rellena desde el matcher para que el UI pueda cribar el ruido.
+ */
+export function rebucketPersisted(
+  profile: Profile,
+  rows: PersistedAlertRow[],
+  grantById: Map<string, SeenGrant>
+): RebucketResult {
+  const alerts: AlertDTO[] = [];
+  const updates: RebucketUpdate[] = [];
+
+  for (const row of rows) {
+    const grant = grantById.get(row.grant_id);
+    if (!grant) {
+      alerts.push(persistedAlertDTO(row, null));
+      continue;
+    }
+
+    const result = matchGrant(profile, grantItemFromSeen(grant));
+    const changed =
+      row.bucket !== result.status ||
+      (row.match_reasons ?? []).join("|") !== result.reasons.join("|");
+
+    if (changed) {
+      updates.push({
+        grantId: row.grant_id,
+        bucket: result.status,
+        matchReasons: result.reasons,
+      });
+    }
+
+    const rebucketedRow: PersistedAlertRow = {
+      ...row,
+      bucket: result.status,
+      match_reasons: result.reasons,
+    };
+    const dto = persistedAlertDTO(rebucketedRow, grant);
+    alerts.push({ ...dto, rule: result.rule });
+  }
+
+  return { alerts, updates };
 }
 
 /* ------------------------------------------------------------------ */

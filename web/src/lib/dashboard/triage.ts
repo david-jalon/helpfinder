@@ -25,6 +25,8 @@ export type AlertDTO = {
   reason: string | null;
   matchReasons: string[];
   aiStatus: AlertAiStatus;
+  /** Regla que descartó la ayuda ('beneficiario' | 'region'), o null. */
+  rule: string | null;
   /** Triaje del usuario. null = pendiente (sin decidir aún). */
   decision: AlertDecision;
 };
@@ -80,6 +82,7 @@ export function persistedAlertDTO(
       row.ai_status === "ok" || row.ai_status === "fallback" || row.ai_status === "pending"
         ? row.ai_status
         : "pending",
+    rule: null,
     decision: isAlertDecision(row.decision) ? row.decision : null,
   };
 }
@@ -116,6 +119,24 @@ export function mergeAlertLists(
   }
 
   return merged;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Puro: clasificación de ruido para el UI                            */
+/* ------------------------------------------------------------------ */
+
+/**
+ * ¿Es una alerta que no merece listarse en «Todas las nuevas»?
+ *   - excluded por beneficiario: ayuda solo para personas jurídicas que
+ *     nunca aplica a un particular (se listan solo las de otra región).
+ *   - maybe sin señal IA: en modo fallback (sin key Gemini) y sin datos de
+ *     elegibilidad, es ruido hasta que haya IA o datos.
+ */
+export function isNoiseAlert(alert: AlertDTO): boolean {
+  return (
+    (alert.bucket === "excluded" && alert.rule === "beneficiario") ||
+    (alert.bucket === "maybe" && alert.aiStatus !== "ok")
+  );
 }
 
 /* ------------------------------------------------------------------ */

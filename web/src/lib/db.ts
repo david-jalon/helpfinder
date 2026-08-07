@@ -1,5 +1,6 @@
 import type { Profile } from "@/lib/domain/profile";
 import type { FollowGrantInput } from "@/lib/dashboard/follow";
+import type { AlertBucket } from "@/lib/dashboard/triage";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -153,6 +154,34 @@ export async function upsertAlerts(
     id: String(row.id),
     grant_id: String(row.grant_id),
   }));
+}
+
+/**
+ * Re-clasifica alertas persistidas (re-bucketeo) sin tocar triaje ni score.
+ * `UNIQUE(user_id, grant_id)` hace el upsert idempotente; solo actualiza
+ * `bucket` y `match_reasons`, dejando intactas `decision`, `score`,
+ * `ai_reason` y `ai_status`.
+ */
+export async function updateAlertBuckets(
+  userId: string,
+  updates: { grantId: string; bucket: AlertBucket; matchReasons: string[] }[]
+): Promise<void> {
+  if (updates.length === 0) return;
+
+  const supabase = await createClient();
+
+  const rows = updates.map((u) => ({
+    user_id: userId,
+    grant_id: u.grantId,
+    bucket: u.bucket,
+    match_reasons: u.matchReasons,
+  }));
+
+  const { error } = await supabase
+    .from("user_alerts")
+    .upsert(rows, { onConflict: "user_id,grant_id" });
+
+  if (error) throw error;
 }
 
 /**

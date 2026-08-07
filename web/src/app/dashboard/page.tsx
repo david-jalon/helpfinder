@@ -6,6 +6,7 @@ import Lightbulb from "@/components/lightbulb";
 import { logout } from "@/lib/supabase/actions";
 import {
   buildTabSummary,
+  isNoiseAlert,
   type AlertDTO,
   type AlertDecision,
 } from "@/lib/dashboard/triage";
@@ -164,12 +165,17 @@ function Ready({ data }: { data: DashboardData }) {
   const toastTimer = useRef<number | null>(null);
 
   // La decisión visible = lo que el servidor devolvió + cambios optimistas.
+  // Se descartan las alertas de ruido (solo personas jurídicas o «maybe» sin
+  // señal IA): no se listan ni cuentan hasta que haya datos o IA. No se
+  // borran de user_alerts: siguen en el diario persistido.
   const alerts = useMemo(
     () =>
-      data.alerts.map((alert) => ({
-        ...alert,
-        decision: alert.id in overrides ? overrides[alert.id] : alert.decision,
-      })),
+      data.alerts
+        .map((alert) => ({
+          ...alert,
+          decision: alert.id in overrides ? overrides[alert.id] : alert.decision,
+        }))
+        .filter((alert) => !isNoiseAlert(alert)),
     [data.alerts, overrides]
   );
 
@@ -220,10 +226,16 @@ function Ready({ data }: { data: DashboardData }) {
   }
 
   const inTab = alerts.filter((alert) => matchesTab(alert.decision, activeTab));
-  const forYou = inTab
-    .filter((alert) => alert.bucket === "matched" || alert.bucket === "maybe")
-    .sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
-  const excluded = inTab.filter((alert) => alert.bucket === "excluded");
+
+  // «Para ti» = ayudas con señal real: matched (región, keyword o
+  // colectivo, o ámbito nacional con beneficiario) + maybe puntuado por la
+  // IA. Sin IA, un «maybe» sin señal es ruido y no entra aquí.
+  const isForYou = (alert: AlertDTO) =>
+    alert.bucket === "matched" ||
+    (alert.bucket === "maybe" && alert.aiStatus === "ok");
+
+  const forYou = inTab.filter(isForYou).sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+  const excluded = inTab.filter((alert) => !isForYou(alert));
 
   return (
     <>
@@ -303,8 +315,8 @@ function Ready({ data }: { data: DashboardData }) {
               <div className={styles.excludedCard}>
                 <p className={styles.excludedRemark}>Revisa por si acaso</p>
                 <p className={styles.excludedRemarkText}>
-                  No pasaron el filtro de tu perfil; a veces se escapa una
-                  buena.
+                  Ayudas que no entraron en «Para ti» porque son de otra región;
+                  a veces se escapa una buena.
                 </p>
                 <ul className={styles.excludedList}>
                   {excluded.map((alert) => (

@@ -48,6 +48,7 @@ function makeDto(overrides: Partial<AlertDTO> = {}): AlertDTO {
     reason: "Encaja con tu sector",
     matchReasons: [],
     aiStatus: "ok",
+    rule: null,
     decision: null,
     ...overrides,
   };

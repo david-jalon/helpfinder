@@ -7,6 +7,8 @@ import {
   matchesBeneficiary,
   matchesRegion,
   matchesKeywords,
+  matchesColectivos,
+  grantExcludesRegion,
   normalizeText,
 } from "@/lib/matching/matcher";
 
@@ -169,6 +171,117 @@ describe("matchGrant (clasificación final)", () => {
   });
 });
 
+describe("grantExcludesRegion (regla dura de región)", () => {
+  it("excluye una ayuda declarada de otra CCAA", () => {
+    const profile = makeProfile({ regiones: ["asturiana"] });
+    const grant = makeGrant({ impactRegions: ["ES419 - Zamora"] });
+    expect(grantExcludesRegion(profile, grant)).toBe(true);
+  });
+
+  it("no excluye si la ayuda incluye la región del perfil", () => {
+    const profile = makeProfile({ regiones: ["asturiana"] });
+    const grant = makeGrant({ impactRegions: ["ES12 - Principado de Asturias"] });
+    expect(grantExcludesRegion(profile, grant)).toBe(false);
+  });
+
+  it("no excluye ayudas de ámbito nacional", () => {
+    const profile = makeProfile({ regiones: ["asturiana"] });
+    const grant = makeGrant({ impactRegions: ["XXXX - TODO EL MUNDO"] });
+    expect(grantExcludesRegion(profile, grant)).toBe(false);
+  });
+
+  it("no excluye ayudas sin regiones declaradas", () => {
+    const profile = makeProfile({ regiones: ["asturiana"] });
+    const grant = makeGrant({ impactRegions: [] });
+    expect(grantExcludesRegion(profile, grant)).toBe(false);
+  });
+});
+
+describe("matchesColectivos (regla blanda)", () => {
+  it("detecta el colectivo en el título", () => {
+    const profile = makeProfile({ colectivos: ["jovenes"] });
+    const grant = makeGrant({ title: "Subvención para jóvenes emprendedores" });
+    expect(matchesColectivos(profile, grant)).toBe("jóvenes");
+  });
+
+  it("detecta 'desempleados' en la finalidad", () => {
+    const profile = makeProfile({ colectivos: ["desempleados"] });
+    const grant = makeGrant({
+      title: "Ayuda general",
+      purpose: "Fomentar el empleo entre desempleados",
+    });
+    expect(matchesColectivos(profile, grant)).toBe("desempleados");
+  });
+
+  it("devuelve null si el colectivo no aparece", () => {
+    const profile = makeProfile({ colectivos: ["jovenes"] });
+    const grant = makeGrant({ title: "Ayuda para asociaciones de mayores" });
+    expect(matchesColectivos(profile, grant)).toBeNull();
+  });
+
+  it("sin colectivos en el perfil no hay señal", () => {
+    const profile = makeProfile({ colectivos: [] });
+    expect(matchesColectivos(profile, makeGrant())).toBeNull();
+  });
+});
+
+describe("matchGrant (recomendación según todo el perfil)", () => {
+  it("excluded: ayuda de otra región aunque acepte el perfil", () => {
+    const profile = makeProfile({ profileType: "persona", regiones: ["asturiana"] });
+    const grant = makeGrant({
+      title: "Subvención deportiva",
+      beneficiaryTypes: ["Personas físicas"],
+      impactRegions: ["ES419 - Zamora"],
+    });
+    const result = matchGrant(profile, grant);
+    expect(result.status).toBe("excluded");
+    expect(result.rule).toBe("region");
+  });
+
+  it("matched: ayuda de ámbito nacional con beneficiario explícito", () => {
+    const profile = makeProfile({ profileType: "persona", regiones: ["asturiana"] });
+    const grant = makeGrant({
+      title: "Programa nacional de deporte",
+      beneficiaryTypes: ["Personas físicas"],
+      impactRegions: [],
+      sectors: [],
+      purpose: "",
+    });
+    const result = matchGrant(profile, grant);
+    expect(result.status).toBe("matched");
+  });
+
+  it("maybe: ayuda sin datos de elegibilidad ni señal", () => {
+    const profile = makeProfile({ profileType: "persona", regiones: ["asturiana"] });
+    const grant = makeGrant({
+      title: "Subvención nominativa",
+      beneficiaryTypes: [],
+      impactRegions: [],
+      purpose: "",
+      sectors: [],
+    });
+    const result = matchGrant(profile, grant);
+    expect(result.status).toBe("maybe");
+  });
+
+  it("matched: el colectivo da señal aunque no haya región ni keyword", () => {
+    const profile = makeProfile({
+      profileType: "persona",
+      regiones: ["asturiana"],
+      colectivos: ["jovenes"],
+    });
+    const grant = makeGrant({
+      title: "Plan de empleo joven",
+      beneficiaryTypes: [],
+      impactRegions: [],
+      sectors: [],
+      purpose: "",
+    });
+    const result = matchGrant(profile, grant);
+    expect(result.status).toBe("matched");
+  });
+});
+
 describe("matchGrants (agrupación)", () => {
   it("reparte cada ayuda en su bucket", () => {
     const profile = makeProfile();
@@ -184,7 +297,8 @@ describe("matchGrants (agrupación)", () => {
         title: "Ayuda genérica sin palabras",
         purpose: "",
         sectors: [],
-        impactRegions: ["ES61 - Andalucía"],
+        beneficiaryTypes: [],
+        impactRegions: [],
       }),
     ];
 

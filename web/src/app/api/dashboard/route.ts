@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/supabase/server";
-import { getProfile, getAlertsForCurrentUser } from "@/lib/db";
+import { getProfile, getAlertsForCurrentUser, updateAlertBuckets } from "@/lib/db";
 import { getGrantsSeenByIds } from "@/lib/grants/feed";
 import {
   runAlerts,
+  rebucketPersisted,
   mergeAlertLists,
-  persistedAlertDTO,
   type PersistedAlertRow,
 } from "@/lib/dashboard/run-alerts";
 
@@ -52,18 +52,19 @@ export async function GET() {
     // 1) Lo fresco de hoy (nuevas + puntuación IA o fallback)
     const fresh = await runAlerts(profile);
 
-    // 2) Todas las alertas persistidas del usuario (más reciente primero)
+    // 2) Todas las alertas persistidas del usuario (más reciente primero),
+    //    re-clasificadas con el matcher ACTUAL para propagar cambios de
+    //    lógica o de perfil a lo ya guardado (sin tocar triaje ni score).
     const persistedRows = (await getAlertsForCurrentUser()) as PersistedAlertRow[];
     const grantIds = persistedRows.map((row) => row.grant_id);
     const grants = await getGrantsSeenByIds(grantIds);
     const grantById = new Map(grants.map((g) => [g.numConvocatoria, g]));
 
-    const persisted = persistedRows.map((row) =>
-      persistedAlertDTO(row, grantById.get(row.grant_id) ?? null)
-    );
+    const rebucketed = rebucketPersisted(profile, persistedRows, grantById);
+    await updateAlertBuckets(user.id, rebucketed.updates);
 
     // 3) Fusión del diario
-    const alerts = mergeAlertLists(fresh.alerts, persisted);
+    const alerts = mergeAlertLists(fresh.alerts, rebucketed.alerts);
 
     return NextResponse.json({
       ok: true,

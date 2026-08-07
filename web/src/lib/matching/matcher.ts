@@ -5,22 +5,26 @@
  * del usuario usando solo los campos estructurados de BDNS ya cacheados
  * en `grants_seen.eligibility_json`:
  *   - beneficiaryTypes  → quién puede pedir la ayuda (regla DURA)
- *   - impactRegions     → dónde aplica (regla BLANDA)
+ *   - impactRegions     → dónde aplica (regla DURA de exclusión + blanda)
  *   - title/purpose/sectors → búsqueda de keywords (regla BLANDA)
+ *   - colectivos        → señales del perfil (jóvenes, desempleados...)
  *
  * Determinista: misma entrada → misma salida. Sin coste, sin red.
  *
  * Buckets:
- *   - matched   : pasa la regla dura y alguna blanda da señal
- *   - maybe     : pasa la dura pero no hay señal clara (la IA decide)
- *   - excluded  : falla la regla dura → nunca gasta llamada Gemini
+ *   - matched   : pasa la regla dura y alguna señal da confianza
+ *                 (región, keyword, colectivo, o ámbito nacional con
+ *                 beneficiario explícito)
+ *   - maybe     : pasa la dura pero sin señal clara (la IA decide)
+ *   - excluded  : falla la regla dura (beneficiario) o la ayuda declara
+ *                 ser de otra región → nunca gasta llamada Gemini
  *
  * El usuario escribe en español llano ("sociedad", "Madrid") y aquí se
  * traduce a tokens que existen en los datos BDNS. El usuario no ve códigos.
  */
 
 import type { GrantItem } from "@/lib/domain/grants";
-import type { Profile, ProfileType, Region } from "@/lib/domain/profile";
+import type { Colectivo, Profile, ProfileType, Region } from "@/lib/domain/profile";
 
 export type MatchStatus = "matched" | "maybe" | "excluded";
 
@@ -74,7 +78,12 @@ export function normalizeText(value: string): string {
  * "otros" no define regla dura (no sabemos su naturaleza).
  */
 const PROFILE_BENEFICIARY_TOKENS: Record<ProfileType, string[]> = {
-  persona: ["persona fisica", "persona fisica no empresaria", "persona fisica empresaria"],
+  persona: [
+    "persona fisica",
+    "personas fisicas",
+    "persona fisica no empresaria",
+    "persona fisica empresaria",
+  ],
   autonomo: ["autonomo", "autonomos", "trabajador autonomo", "trabajadores autonomos"],
   sociedad: ["empresa", "empresas", "sociedad", "pyme", "pymes", "gran empresa"],
   asociacion: ["asociacion", "asociaciones", "asociativo"],
@@ -116,6 +125,111 @@ const REGION_TOKENS: Record<Region, string[]> = {
   melilla: ["melilla"],
 };
 
+/**
+ * Cada colectivo del perfil (persona) se traduce a tokens que suelen
+ * aparecer en el título, la finalidad, los sectores o los beneficiarios.
+ * Es una señal BLANDA positiva: da confianza, pero no descarta por sí sola.
+ */
+const COLECTIVO_TOKENS: Record<Colectivo, string[]> = {
+  jovenes: [
+    "joven",
+    "jovenes",
+    "juventud",
+    "menores de 30",
+    "menores de 35",
+    "menor de 30",
+    "menor de 35",
+  ],
+  estudiantes: [
+    "estudiante",
+    "estudiantes",
+    "estudiantil",
+    "alumnado",
+    "alumno",
+    "alumnos",
+    "universitario",
+    "universitarios",
+    "universitaria",
+    "becario",
+    "becarios",
+  ],
+  desempleados: [
+    "desempleo",
+    "desemplead",
+    "parados",
+    "paro",
+    "insercion laboral",
+    "insercion sociolaboral",
+    "empleabilidad",
+    "reinsercion laboral",
+  ],
+  mujeres: [
+    "mujer",
+    "mujeres",
+    "femenino",
+    "igualdad de genero",
+    "violencia de genero",
+    "empoderamiento femenino",
+  ],
+  personas_con_discapacidad: [
+    "discapacidad",
+    "discapacitad",
+    "diversidad funcional",
+    "minusvalia",
+    "accesibilidad",
+  ],
+  mayores: [
+    "personas mayores",
+    "tercera edad",
+    "jubilad",
+    "pensionista",
+    "pensionistas",
+    "envejecimiento",
+    "envejecimiento activo",
+    "dependencia",
+    "mayores",
+  ],
+  inmigrantes: [
+    "inmigra",
+    "migrant",
+    "inmigrantes",
+    "extranjero",
+    "extranjeros",
+    "migracion",
+  ],
+  otros: [],
+};
+
+const COLECTIVO_LABEL: Record<Colectivo, string> = {
+  jovenes: "jóvenes",
+  estudiantes: "estudiantes",
+  desempleados: "desempleados",
+  mujeres: "mujeres",
+  personas_con_discapacidad: "personas con discapacidad",
+  mayores: "mayores",
+  inmigrantes: "inmigrantes",
+  otros: "otros colectivos",
+};
+
+/**
+ * Marcadores que indican que una ayuda es de ámbito nacional (vale para
+ * cualquier comunidad autónoma), aunque BDNS las liste en `regiones`.
+ */
+const NATIONAL_SCOPE_MARKERS = [
+  "todo el mundo",
+  "todas las comunidades",
+  "varias comunidades",
+  "todas las ccaa",
+  "todas las regiones",
+  "todas las autonomias",
+  "todo el territorio",
+  "ambito nacional",
+  "territorio nacional",
+  "toda espana",
+  "nacional",
+  "estatal",
+];
+
 /* ------------------------------------------------------------------ */
 /*  Comprobaciones de reglas                                           */
 /* ------------------------------------------------------------------ */
@@ -145,6 +259,67 @@ export function matchesRegion(profile: Profile, grant: GrantItem): boolean {
   const impactRegions = grant.impactRegions ?? [];
   if (impactRegions.length === 0) return false;
   return tokensHitAny(impactRegions, profileTokens);
+}
+
+/** La ayuda es de ámbito nacional (no hay que exigirle región). */
+export function isNationalScope(grant: GrantItem): boolean {
+  const impactRegions = grant.impactRegions ?? [];
+  if (impactRegions.length === 0) return true;
+  const normalized = impactRegions.map(normalizeText).join(" ");
+  return NATIONAL_SCOPE_MARKERS.some((m) =>
+    normalized.includes(normalizeText(m))
+  );
+}
+
+/**
+ * Regla DURA: la ayuda declara regiones y NINGUNA es la del perfil.
+ * Se excluye salvo que sea de ámbito nacional o no declare región.
+ */
+export function grantExcludesRegion(profile: Profile, grant: GrantItem): boolean {
+  if (profile.regiones.length === 0) return false;
+  const impactRegions = grant.impactRegions ?? [];
+  if (impactRegions.length === 0) return false;
+  if (isNationalScope(grant)) return false;
+  return !matchesRegion(profile, grant);
+}
+
+/**
+ * El beneficiario de la ayuda COINCIDE de forma explícita con el perfil
+ * (requiere que BDNS declare datos de beneficiario). Distinto de
+ * `matchesBeneficiary`, que deja pasar los datos vacíos.
+ */
+export function hasBeneficiaryMatch(profile: Profile, grant: GrantItem): boolean {
+  const tokens = PROFILE_BENEFICIARY_TOKENS[profile.profileType];
+  if (tokens.length === 0) return false;
+  const beneficiaryTypes = grant.beneficiaryTypes ?? [];
+  if (beneficiaryTypes.length === 0) return false;
+  return tokensHitAny(beneficiaryTypes, tokens);
+}
+
+/** Regla BLANDA: un colectivo del perfil aparece en la ayuda. */
+export function matchesColectivos(profile: Profile, grant: GrantItem): string | null {
+  if (profile.colectivos.length === 0) return null;
+
+  const text = [
+    grant.title,
+    grant.purpose ?? "",
+    (grant.sectors ?? []).join(" "),
+    (grant.beneficiaryTypes ?? []).join(" "),
+  ]
+    .map((part) => normalizeText(part ?? ""))
+    .join(" ");
+
+  for (const colectivo of profile.colectivos) {
+    const tokens = COLECTIVO_TOKENS[colectivo] ?? [];
+    for (const token of tokens) {
+      const normalized = normalizeText(token);
+      if (normalized.length > 0 && text.includes(normalized)) {
+        return COLECTIVO_LABEL[colectivo];
+      }
+    }
+  }
+
+  return null;
 }
 
 /** Regla BLANDA: una keyword del perfil aparece en el título, la finalidad o los sectores. */
@@ -190,16 +365,39 @@ export function matchGrant(profile: Profile, grant: GrantItem): MatchResult {
     };
   }
 
+  // Regla dura: si la ayuda declara ser de otra región, se descarta.
+  if (grantExcludesRegion(profile, grant)) {
+    return {
+      id: grant.id,
+      status: "excluded",
+      reasons,
+      rule: "region",
+    };
+  }
+
   reasons.push(`La ayuda acepta tu perfil (${PROFILE_TYPE_LABEL[profile.profileType]})`);
 
-  // Reglas blandas: región y keywords.
+  // Reglas blandas: región, keywords y colectivos.
   const regionHit = matchesRegion(profile, grant);
   if (regionHit) reasons.push("Coincide con tu región");
 
   const keywordHit = matchesKeywords(profile, grant);
   if (keywordHit) reasons.push(`Coincide tu palabra clave «${keywordHit}»`);
 
-  const status: MatchStatus = regionHit || keywordHit ? "matched" : "maybe";
+  const colectivoHit = matchesColectivos(profile, grant);
+  if (colectivoHit) reasons.push(`Coincide tu colectivo (${colectivoHit})`);
+
+  // Una ayuda de ámbito nacional con beneficiario explícito también vale
+  // para ti, aunque no coincida la región.
+  const nationalScope = isNationalScope(grant);
+  const strongBeneficiary = hasBeneficiaryMatch(profile, grant);
+  const recommendable =
+    regionHit ||
+    keywordHit ||
+    colectivoHit ||
+    (nationalScope && strongBeneficiary);
+
+  const status: MatchStatus = recommendable ? "matched" : "maybe";
 
   return { id: grant.id, status, reasons, rule: null };
 }
