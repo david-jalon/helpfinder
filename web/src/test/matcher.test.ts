@@ -220,10 +220,10 @@ describe("grantExcludesRegion (regla dura de región)", () => {
     expect(grantExcludesRegion(profile, grant)).toBe(false);
   });
 
-  it("no excluye ayudas sin regiones declaradas", () => {
+  it("excluye ayudas sin regiones declaradas cuando el perfil tiene región", () => {
     const profile = makeProfile({ regiones: ["asturiana"] });
     const grant = makeGrant({ impactRegions: [] });
-    expect(grantExcludesRegion(profile, grant)).toBe(false);
+    expect(grantExcludesRegion(profile, grant)).toBe(true);
   });
 });
 
@@ -273,7 +273,7 @@ describe("matchGrant (recomendación según todo el perfil)", () => {
     const grant = makeGrant({
       title: "Programa nacional de deporte",
       beneficiaryTypes: ["Personas físicas"],
-      impactRegions: [],
+      impactRegions: ["XXXX - TODO EL MUNDO"],
       sectors: [],
       purpose: "",
     });
@@ -281,7 +281,25 @@ describe("matchGrant (recomendación según todo el perfil)", () => {
     expect(result.status).toBe("matched");
   });
 
-  it("maybe: ayuda sin datos de elegibilidad ni señal", () => {
+  it("maybe: ayuda nacional sin señal blanda", () => {
+    const profile = makeProfile({
+      profileType: "persona",
+      regiones: ["asturiana"],
+      keywords: "",
+      colectivos: [],
+    });
+    const grant = makeGrant({
+      title: "Programa nacional genérico",
+      beneficiaryTypes: [],
+      impactRegions: ["XXXX - TODO EL MUNDO"],
+      purpose: "",
+      sectors: [],
+    });
+    const result = matchGrant(profile, grant);
+    expect(result.status).toBe("maybe");
+  });
+
+  it("excluded: ayuda sin datos de región cuando el perfil tiene región", () => {
     const profile = makeProfile({ profileType: "persona", regiones: ["asturiana"] });
     const grant = makeGrant({
       title: "Subvención nominativa",
@@ -291,13 +309,14 @@ describe("matchGrant (recomendación según todo el perfil)", () => {
       sectors: [],
     });
     const result = matchGrant(profile, grant);
-    expect(result.status).toBe("maybe");
+    expect(result.status).toBe("excluded");
+    expect(result.rule).toBe("region");
   });
 
-  it("matched: el colectivo da señal aunque no haya región ni keyword", () => {
+  it("matched: el colectivo da señal aunque no haya keyword", () => {
     const profile = makeProfile({
       profileType: "persona",
-      regiones: ["asturiana"],
+      regiones: [],
       colectivos: ["jovenes"],
     });
     const grant = makeGrant({
@@ -324,11 +343,11 @@ describe("matchGrants (agrupación)", () => {
       }),
       makeGrant({
         id: "c",
-        title: "Ayuda genérica sin palabras",
+        title: "Ayuda nacional genérica",
         purpose: "",
         sectors: [],
         beneficiaryTypes: [],
-        impactRegions: [],
+        impactRegions: ["XXXX - TODO EL MUNDO"],
       }),
     ];
 

@@ -265,6 +265,12 @@
   color: var(--fg-muted);
 }
 
+.regions {
+  font-size: 0.8rem;
+  color: var(--fg-muted);
+  line-height: 1.4;
+}
+
 .cardReason {
   font-size: 0.88rem;
   color: var(--fg);

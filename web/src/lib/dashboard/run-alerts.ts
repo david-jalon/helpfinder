@@ -37,6 +37,7 @@ import {
   isAlertDecision,
   isNoiseAlert,
   persistedAlertDTO,
+  formatImpactRegions,
   mergeAlertLists,
   buildTabSummary,
   type AlertBucket,
@@ -67,6 +68,7 @@ export {
   isAlertDecision,
   isNoiseAlert,
   persistedAlertDTO,
+  formatImpactRegions,
   mergeAlertLists,
   buildTabSummary,
 };
@@ -141,6 +143,7 @@ export function buildAlertDTOs(
         : "pending",
       rule: match.rule,
       decision: null,
+      impactRegions: formatImpactRegions(row?.eligibilityJson?.impactRegions),
     };
   };
 

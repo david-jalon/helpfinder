@@ -15,9 +15,10 @@
  *   - matched   : pasa la regla dura y alguna señal da confianza
  *                 (región, keyword, colectivo, o ámbito nacional con
  *                 beneficiario explícito)
- *   - maybe     : pasa la dura pero sin señal clara (la IA decide)
- *   - excluded  : falla la regla dura (beneficiario) o la ayuda declara
- *                 ser de otra región → nunca gasta llamada Gemini
+ *   - maybe     : pasa la dura pero sin señal clara (la IA decide).
+ *                 Solo aparecen ayudas de ámbito nacional sin señal blanda.
+ *   - excluded  : falla la regla dura (beneficiario), la ayuda no declara
+ *                 región o declara ser de otra región → nunca gasta llamada Gemini
  *
  * El usuario escribe en español llano ("sociedad", "Madrid") y aquí se
  * traduce a tokens que existen en los datos BDNS. El usuario no ve códigos.
@@ -273,12 +274,13 @@ export function isNationalScope(grant: GrantItem): boolean {
 
 /**
  * Regla DURA: la ayuda declara regiones y NINGUNA es la del perfil.
- * Se excluye salvo que sea de ámbito nacional o no declare región.
+ * Se excluye si no declara región o si declara regiones que no coinciden
+ * con el perfil (salvo que sea de ámbito nacional).
  */
 export function grantExcludesRegion(profile: Profile, grant: GrantItem): boolean {
   if (profile.regiones.length === 0) return false;
   const impactRegions = grant.impactRegions ?? [];
-  if (impactRegions.length === 0) return false;
+  if (impactRegions.length === 0) return true;
   if (isNationalScope(grant)) return false;
   return !matchesRegion(profile, grant);
 }
@@ -405,7 +407,7 @@ export function matchGrant(profile: Profile, grant: GrantItem): MatchResult {
     };
   }
 
-  // Regla dura: si la ayuda declara ser de otra región, se descarta.
+  // Regla dura: si la ayuda no declara región o declara ser de otra región, se descarta.
   if (grantExcludesRegion(profile, grant)) {
     return {
       id: grant.id,

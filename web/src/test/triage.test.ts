@@ -3,6 +3,7 @@ import type { SeenGrant } from "@/lib/grants/feed";
 import type { AlertDTO } from "@/lib/dashboard/run-alerts";
 import {
   buildTabSummary,
+  formatImpactRegions,
   isAlertDecision,
   mergeAlertLists,
   persistedAlertDTO,
@@ -50,6 +51,7 @@ function makeDto(overrides: Partial<AlertDTO> = {}): AlertDTO {
     aiStatus: "ok",
     rule: null,
     decision: null,
+    impactRegions: [],
     ...overrides,
   };
 }
@@ -97,6 +99,53 @@ describe("persistedAlertDTO", () => {
     expect(dto.bucket).toBe("excluded");
     expect(dto.aiStatus).toBe("pending");
     expect(dto.decision).toBeNull();
+  });
+
+  it("con grant: expone las regiones de impacto limpias", () => {
+    const dto = persistedAlertDTO(
+      makeRow(),
+      makeGrant({
+        eligibilityJson: {
+          impactRegions: ["ES13 - Comunidad de Madrid", "ES300 - Madrid"],
+        },
+      })
+    );
+    expect(dto.impactRegions).toEqual(["Comunidad de Madrid", "Madrid"]);
+  });
+
+  it("sin grant o sin regiones: impactRegions vacío", () => {
+    expect(persistedAlertDTO(makeRow(), null).impactRegions).toEqual([]);
+    expect(
+      persistedAlertDTO(makeRow(), makeGrant()).impactRegions
+    ).toEqual([]);
+  });
+});
+
+describe("formatImpactRegions", () => {
+  it("limpia prefijos BDNS, deduplica y descarta vacíos", () => {
+    expect(
+      formatImpactRegions([
+        "ES300 - Madrid",
+        "ES61 - ANDALUCIA",
+        "ES300 - Madrid",
+        "",
+        "  ",
+        123,
+      ])
+    ).toEqual(["Madrid", "ANDALUCIA"]);
+  });
+
+  it("devuelve [] ante valores no array o vacío", () => {
+    expect(formatImpactRegions(null)).toEqual([]);
+    expect(formatImpactRegions("ES300 - Madrid")).toEqual([]);
+    expect(formatImpactRegions([])).toEqual([]);
+  });
+
+  it("deja intactas cadenas sin prefijo ES", () => {
+    expect(formatImpactRegions(["TODO EL MUNDO", "MT"])).toEqual([
+      "TODO EL MUNDO",
+      "MT",
+    ]);
   });
 });
 

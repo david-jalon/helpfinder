@@ -29,6 +29,8 @@ export type AlertDTO = {
   rule: string | null;
   /** Triaje del usuario. null = pendiente (sin decidir aún). */
   decision: AlertDecision;
+  /** Regiones de impacto limpias (sin prefijo BDNS), p.ej. "Madrid". */
+  impactRegions: string[];
 };
 
 /** Fila mínima de `user_alerts` que necesita el mapeador puro. */
@@ -48,6 +50,22 @@ export type PersistedAlertRow = {
 /* ------------------------------------------------------------------ */
 
 const DECISIONS = new Set<string>(["seguir", "posible", "denegada"]);
+
+/**
+ * Extrae regiones de impacto de la elegibilidad (o null) y las devuelve
+ * limpias: "ES300 - Madrid" → "Madrid". Deduplica y descarta vacías.
+ */
+export function formatImpactRegions(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<string>();
+  for (const item of value) {
+    if (typeof item !== "string") continue;
+    const name = item.replace(/^ES\d{2,3}\s*-\s*/i, "").trim();
+    if (!name) continue;
+    seen.add(name);
+  }
+  return Array.from(seen);
+}
 
 export function isAlertDecision(
   value: unknown
@@ -84,6 +102,7 @@ export function persistedAlertDTO(
         : "pending",
     rule: null,
     decision: isAlertDecision(row.decision) ? row.decision : null,
+    impactRegions: formatImpactRegions(grant?.eligibilityJson?.impactRegions),
   };
 }
 

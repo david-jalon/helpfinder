@@ -168,9 +168,9 @@ function Ready({ data }: { data: DashboardData }) {
   const toastTimer = useRef<number | null>(null);
 
   // La decisión visible = lo que el servidor devolvió + cambios optimistas.
-  // Se descartan las alertas de ruido (solo personas jurídicas o «maybe» sin
-  // señal IA): no se listan ni cuentan hasta que haya datos o IA. No se
-  // borran de user_alerts: siguen en el diario persistido.
+  // Se descartan las alertas excluidas (beneficiario incorrecto, región
+  // que no coincide o sin datos de región): no se listan ni cuentan.
+  // No se borran de user_alerts: siguen en el diario persistido.
   const alerts = useMemo(
     () =>
       data.alerts
@@ -330,6 +330,7 @@ function Ready({ data }: { data: DashboardData }) {
                         <span className={styles.excludedTitle}>
                           {alert.title}
                         </span>
+                        <Regions regions={alert.impactRegions} />
                       </div>
                       <div className={styles.excludedActions}>
                         {alert.sourceUrl && (
@@ -429,6 +430,7 @@ function Card({
       {alert.organization && (
         <p className={styles.cardOrg}>{alert.organization}</p>
       )}
+      <Regions regions={alert.impactRegions} />
       {alert.reason && <p className={styles.cardReason}>{alert.reason}</p>}
       {!alert.reason && alert.matchReasons.length > 0 && (
         <p className={styles.cardReason}>{alert.matchReasons.join(" · ")}</p>
@@ -448,6 +450,11 @@ function Card({
       </div>
     </li>
   );
+}
+
+function Regions({ regions }: { regions: string[] }) {
+  if (regions.length === 0) return null;
+  return <p className={styles.regions}>📍 {regions.join(" · ")}</p>;
 }
 
 function Triage({

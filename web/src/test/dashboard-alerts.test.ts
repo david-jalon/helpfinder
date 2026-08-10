@@ -93,11 +93,11 @@ describe("buildAlertDTOs", () => {
     }),
     makeSeenGrant({
       numConvocatoria: "c",
-      title: "Ayuda genérica sin datos",
+      title: "Ayuda nacional genérica sin señales",
       eligibilityJson: {
         beneficiaryTypes: [],
         sectors: [],
-        impactRegions: [],
+        impactRegions: ["XXXX - TODO EL MUNDO"],
         purpose: null,
         instrumentType: null,
       },
@@ -132,6 +132,7 @@ describe("buildAlertDTOs", () => {
     expect(matched?.score).toBe(88);
     expect(matched?.reason).toContain("Encaja");
     expect(matched?.aiStatus).toBe("ok");
+    expect(matched?.impactRegions).toEqual(["Comunidad de Madrid"]);
   });
 
   it("no genera DTO para las ayudas excluidas", () => {

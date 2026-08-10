@@ -90,6 +90,7 @@ function makeDto(overrides: Partial<AlertDTO> = {}): AlertDTO {
     aiStatus: "fallback",
     rule: null,
     decision: null,
+    impactRegions: [],
     ...overrides,
   };
 }
