@@ -126,17 +126,12 @@ export function mergeAlertLists(
 /* ------------------------------------------------------------------ */
 
 /**
- * ¿Es una alerta que no merece listarse en «Todas las nuevas»?
- *   - excluded por beneficiario: ayuda solo para personas jurídicas que
- *     nunca aplica a un particular (se listan solo las de otra región).
- *   - maybe sin señal IA: en modo fallback (sin key Gemini) y sin datos de
- *     elegibilidad, es ruido hasta que haya IA o datos.
+ * ¿Es una alerta que no merece listarse? Las `excluded` no se guardan ni
+ * se muestran; este filtro es una red de seguridad por si quedara alguna
+ * fila sin limpiar. Los `maybe` SÍ se listan («Quizás te interesen»).
  */
 export function isNoiseAlert(alert: AlertDTO): boolean {
-  return (
-    (alert.bucket === "excluded" && alert.rule === "beneficiario") ||
-    (alert.bucket === "maybe" && alert.aiStatus !== "ok")
-  );
+  return alert.bucket === "excluded";
 }
 
 /* ------------------------------------------------------------------ */

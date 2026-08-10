@@ -185,6 +185,26 @@ export async function updateAlertBuckets(
 }
 
 /**
+ * Elimina alertas del usuario. Se usa para borrar las que el matcher
+ * reclasifica como `excluded`: ya no aplican a su perfil y no se guardan.
+ */
+export async function deleteAlerts(
+  userId: string,
+  ids: string[]
+): Promise<void> {
+  if (ids.length === 0) return;
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("user_alerts")
+    .delete()
+    .eq("user_id", userId)
+    .in("id", ids);
+
+  if (error) throw error;
+}
+
+/**
  * Guarda la decisión de triaje de una alerta.
  * `decision` puede ser 'seguir' | 'posible' | 'denegada' | null (= deshacer,
  * vuelve a Pendientes). El RLS solo permite tocar filas cuyo user_id

@@ -49,6 +49,9 @@ const DECISION_BTN: { key: Exclude<AlertDecision, null>; label: string }[] = [
   { key: "denegada", label: "Denegar" },
 ];
 
+/** Score mínimo de IA para que un «maybe» entre en «Para ti». */
+const MIN_SCORE_PARA_TI = 50;
+
 function matchesTab(decision: AlertDecision, tab: TabKey): boolean {
   switch (tab) {
     case "pendientes":
@@ -228,14 +231,16 @@ function Ready({ data }: { data: DashboardData }) {
   const inTab = alerts.filter((alert) => matchesTab(alert.decision, activeTab));
 
   // «Para ti» = ayudas con señal real: matched (región, keyword o
-  // colectivo, o ámbito nacional con beneficiario) + maybe puntuado por la
-  // IA. Sin IA, un «maybe» sin señal es ruido y no entra aquí.
+  // colectivo, o ámbito nacional con beneficiario) + maybe que la IA
+  // puntuó bien (score ≥ 50). El resto de maybe va a «Quizás te interesen».
   const isForYou = (alert: AlertDTO) =>
     alert.bucket === "matched" ||
-    (alert.bucket === "maybe" && alert.aiStatus === "ok");
+    (alert.bucket === "maybe" &&
+      alert.aiStatus === "ok" &&
+      (alert.score ?? 0) >= MIN_SCORE_PARA_TI);
 
   const forYou = inTab.filter(isForYou).sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
-  const excluded = inTab.filter((alert) => !isForYou(alert));
+  const maybe = inTab.filter((alert) => !isForYou(alert));
 
   return (
     <>
@@ -244,7 +249,7 @@ function Ready({ data }: { data: DashboardData }) {
         <p className={styles.eyebrow}>Expediente</p>
         <h1 className={styles.summary}>Resumen diario de ayudas</h1>
         <p className={styles.headSub}>
-          Lo nuevo de hoy entra por la pestaña "Pendientes", tú decides a dónde va.
+          Lo nuevo de hoy entra por la pestaña «Pendientes», tú decides a dónde va.
         </p>
       </section>
 
@@ -305,21 +310,21 @@ function Ready({ data }: { data: DashboardData }) {
             </section>
           )}
 
-          {/* ── todas las nuevas (excluidas) ── */}
-          {excluded.length > 0 && (
+          {/* ── quizás te interesen (maybe) ── */}
+          {maybe.length > 0 && (
             <section className={styles.section}>
               <h2 className={styles.sectionTitle}>
-                Todas las nuevas{" "}
-                <span className={styles.sectionCount}>{excluded.length}</span>
+                Quizás te interesen{" "}
+                <span className={styles.sectionCount}>{maybe.length}</span>
               </h2>
               <div className={styles.excludedCard}>
-                <p className={styles.excludedRemark}>Revisa por si acaso</p>
+                <p className={styles.excludedRemark}>Sin señal clara</p>
                 <p className={styles.excludedRemarkText}>
-                  Ayudas que no entraron en «Para ti». 
-                  A veces se escapa alguna buena.
+                  Ayudas sin una señal concreta de tu perfil, pero que podrían
+                  encajar. Revisa por si acaso.
                 </p>
                 <ul className={styles.excludedList}>
-                  {excluded.map((alert) => (
+                  {maybe.map((alert) => (
                     <li key={alert.id} className={styles.excludedRow}>
                       <div className={styles.excludedInfo}>
                         <span className={styles.excludedTitle}>

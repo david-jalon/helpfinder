@@ -139,6 +139,36 @@ describe("matchesKeywords (regla blanda)", () => {
     const grant = makeGrant();
     expect(matchesKeywords(profile, grant)).toBeNull();
   });
+
+  it("no matchea una keyword de 2 letras como subcadena cruzando palabras (I+D)", () => {
+    const profile = makeProfile({ keywords: "I+D" });
+    const grant = makeGrant({
+      title: "CONVENIO 2026 ASSOCIACIO DE FESTES DEL BARRI DEL BARATO",
+      sectors: [],
+      purpose: "",
+    });
+    expect(matchesKeywords(profile, grant)).toBeNull();
+  });
+
+  it("sí matchea una keyword con símbolo cuando aparece como token real", () => {
+    const profile = makeProfile({ keywords: "I+D" });
+    const grant = makeGrant({
+      title: "Ayudas a la I+D empresarial",
+      sectors: [],
+      purpose: "",
+    });
+    expect(matchesKeywords(profile, grant)).toBe("I+D");
+  });
+
+  it("matchea una frase de varias palabras como tokens consecutivos", () => {
+    const profile = makeProfile({ keywords: "coche eléctrico" });
+    const grant = makeGrant({
+      title: "Subvención para la compra de coche eléctrico",
+      sectors: [],
+      purpose: "",
+    });
+    expect(matchesKeywords(profile, grant)).toBe("coche eléctrico");
+  });
 });
 
 describe("matchGrant (clasificación final)", () => {

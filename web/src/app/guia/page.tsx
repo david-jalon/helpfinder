@@ -152,12 +152,9 @@ export default function GuiaPage() {
             para deshacerlo.
           </p>
           <p className={styles.text}>
-            Las ayudas que no pasaron el filtro no desaparecen: aparecen en la
-            sección{" "}
-            <strong>
-              Todas las nuevas
-            </strong>
-            , solo con título y enlace, por si se escapa alguna buena.
+            Las ayudas sin una señal clara de tu perfil van a la sección{" "}
+            <strong>Quizás te interesen</strong>, por si alguna merece la pena
+            aunque no sea una coincidencia directa.
           </p>
         </section>
 

@@ -322,6 +322,32 @@ export function matchesColectivos(profile: Profile, grant: GrantItem): string | 
   return null;
 }
 
+/** Divide un texto normalizado en tokens (palabras). */
+function tokensOf(normalized: string): string[] {
+  return normalized.split(" ").filter((t) => t.length > 0);
+}
+
+/**
+ * ¿Una secuencia de tokens aparece como subsecuencia CONSECUTIVA en el texto?
+ * Se usa para keywords de varias palabras (p. ej. "I+D" → ["i","d"]), evitando
+ * que un `includes` de subcadena cruce límites de palabra ("barri del" no debe
+ * matchear "i d" aunque contenga la letra 'i' antes de "del").
+ */
+function hasConsecutiveTokens(text: string[], keyword: string[]): boolean {
+  if (keyword.length === 0 || keyword.length > text.length) return false;
+  for (let i = 0; i + keyword.length <= text.length; i++) {
+    let hit = true;
+    for (let j = 0; j < keyword.length; j++) {
+      if (text[i + j] !== keyword[j]) {
+        hit = false;
+        break;
+      }
+    }
+    if (hit) return true;
+  }
+  return false;
+}
+
 /** Regla BLANDA: una keyword del perfil aparece en el título, la finalidad o los sectores. */
 export function matchesKeywords(profile: Profile, grant: GrantItem): string | null {
   const keywords = profile.keywords
@@ -331,17 +357,31 @@ export function matchesKeywords(profile: Profile, grant: GrantItem): string | nu
 
   if (keywords.length === 0) return null;
 
-  const text = [
+  const textTokens = [
     grant.title,
     grant.purpose ?? "",
     (grant.sectors ?? []).join(" "),
   ]
     .map((part) => normalizeText(part ?? ""))
-    .join(" ");
+    .map(tokensOf)
+    .flat();
 
   for (const keyword of keywords) {
-    const normalized = normalizeText(keyword);
-    if (normalized.length > 0 && text.includes(normalized)) return keyword.trim();
+    const keywordTokens = tokensOf(normalizeText(keyword));
+
+    // Una sola palabra: la buscamos como subcadena DENTRO de un token
+    // (mantiene "digitalizacion" → "digitalizaciones"), no cruzando palabras.
+    if (keywordTokens.length === 1) {
+      if (textTokens.some((token) => token.includes(keywordTokens[0]))) {
+        return keyword.trim();
+      }
+      continue;
+    }
+
+    // Varias palabras: deben aparecer como tokens consecutivos exactos.
+    if (hasConsecutiveTokens(textTokens, keywordTokens)) {
+      return keyword.trim();
+    }
   }
 
   return null;

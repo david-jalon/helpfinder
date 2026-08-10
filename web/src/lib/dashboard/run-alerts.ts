@@ -131,17 +131,14 @@ export function buildAlertDTOs(
       organization: row?.organization ?? null,
       sourceUrl: row?.sourceUrl ?? null,
       bucket,
-      score: bucket === "excluded" ? null : (scoreEntry?.score ?? null),
-      reason: bucket === "excluded" ? null : (scoreEntry?.reason ?? null),
+      score: scoreEntry?.score ?? null,
+      reason: scoreEntry?.reason ?? null,
       matchReasons: match.reasons,
-      aiStatus:
-        bucket === "excluded"
-          ? "pending"
-          : globalAiStatus === "ok"
-            ? "ok"
-            : globalAiStatus === "fallback"
-              ? "fallback"
-              : "pending",
+      aiStatus: scoreEntry
+        ? globalAiStatus === "fallback"
+          ? "fallback"
+          : "ok"
+        : "pending",
       rule: match.rule,
       decision: null,
     };
@@ -150,7 +147,6 @@ export function buildAlertDTOs(
   return [
     ...outcome.matched.map((m) => makeDto(m, "matched")),
     ...outcome.maybe.map((m) => makeDto(m, "maybe")),
-    ...outcome.excluded.map((m) => makeDto(m, "excluded")),
   ];
 }
 
@@ -169,6 +165,8 @@ export type RebucketResult = {
   alerts: AlertDTO[];
   /** Cambios a escribir en `user_alerts` (solo los que cambian). */
   updates: RebucketUpdate[];
+  /** ids de filas `user_alerts` que ya no aplican (reclasificadas excluded). */
+  deletes: string[];
 };
 
 /**
@@ -178,6 +176,9 @@ export type RebucketResult = {
  * Conserva `decision`, `score`, `ai_reason` y `ai_status` de la fila; solo
  * recalcula `bucket` y `match_reasons` (que es lo que decide el UI).
  * `rule` se rellena desde el matcher para que el UI pueda cribar el ruido.
+ *
+ * Las filas que el matcher reclasifica como `excluded` ya no aplican al
+ * perfil: no se devuelven en `alerts` ni en `updates`, sino en `deletes`.
  */
 export function rebucketPersisted(
   profile: Profile,
@@ -186,6 +187,7 @@ export function rebucketPersisted(
 ): RebucketResult {
   const alerts: AlertDTO[] = [];
   const updates: RebucketUpdate[] = [];
+  const deletes: string[] = [];
 
   for (const row of rows) {
     const grant = grantById.get(row.grant_id);
@@ -195,6 +197,12 @@ export function rebucketPersisted(
     }
 
     const result = matchGrant(profile, grantItemFromSeen(grant));
+
+    if (result.status === "excluded") {
+      deletes.push(row.id);
+      continue;
+    }
+
     const changed =
       row.bucket !== result.status ||
       (row.match_reasons ?? []).join("|") !== result.reasons.join("|");
@@ -216,7 +224,7 @@ export function rebucketPersisted(
     alerts.push({ ...dto, rule: result.rule });
   }
 
-  return { alerts, updates };
+  return { alerts, updates, deletes };
 }
 
 /* ------------------------------------------------------------------ */

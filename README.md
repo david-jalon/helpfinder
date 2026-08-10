@@ -19,8 +19,9 @@ la BDNS internamente.
 
 Un matcher determinista decide primero qué ayudas se parecen a tu perfil. Solo
 las que pasan ese filtro consumen una llamada de IA (Gemini) que puntúa y
-razona cada una. El resto aparece en una sección aparte, "todas las nuevas",
-solo con título y enlace, por si quieres revisarlas a mano.
+razona cada una. Las descartadas no se guardan ni se muestran; las dudosas
+("maybe") aparecen en una sección aparte, "quizás te interesen", por si
+quieres revisarlas a mano.
 
 Cada usuario usa su propia API key de Gemini. No existe una key maestra ni
 etiquetado compartido, así que el servicio no depende de ninguna cuota global
@@ -44,7 +45,7 @@ buscar nuevas → guardar IDs y elegibilidad en grants_seen (dato público, grat
 1. matcher determinista: matched / maybe / excluded
 2. una llamada Gemini (su key) sobre matched y maybe → score + motivo
 3. diario de alertas con triaje: Seguir / Posible / Denegar
-4. sección "todas las nuevas" para las excluidas
+4. sección "quizás te interesen" para las dudosas (maybe)
 ```
 
 El cron solo descarga los datos públicos de la BDNS (gratis). La IA se ejecuta

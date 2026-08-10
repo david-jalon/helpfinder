@@ -76,7 +76,8 @@ describe("grantItemFromSeen", () => {
 describe("buildAlertDTOs", () => {
   const profile = makeProfile();
 
-  // Dos ayudas: una que encaja (matched) y una que no (excluded).
+  // Tres ayudas: una que encaja (matched), una que no (excluded) y una
+  // sin señales (maybe).
   const grants = [
     makeSeenGrant({ numConvocatoria: "a" }),
     makeSeenGrant({
@@ -87,6 +88,17 @@ describe("buildAlertDTOs", () => {
         sectors: [],
         impactRegions: ["ES61 - Andalucía"],
         purpose: "",
+        instrumentType: null,
+      },
+    }),
+    makeSeenGrant({
+      numConvocatoria: "c",
+      title: "Ayuda genérica sin datos",
+      eligibilityJson: {
+        beneficiaryTypes: [],
+        sectors: [],
+        impactRegions: [],
+        purpose: null,
         instrumentType: null,
       },
     }),
@@ -122,15 +134,22 @@ describe("buildAlertDTOs", () => {
     expect(matched?.aiStatus).toBe("ok");
   });
 
-  it("excluded nunca lleva score ni reason y queda 'pending'", () => {
+  it("no genera DTO para las ayudas excluidas", () => {
     const dtos = buildAlertDTOs(grants, outcome, okScore);
 
-    const excluded = dtos.find((d) => d.bucket === "excluded");
-    expect(excluded).toBeDefined();
-    expect(excluded?.grantId).toBe("b");
-    expect(excluded?.score).toBeNull();
-    expect(excluded?.reason).toBeNull();
-    expect(excluded?.aiStatus).toBe("pending");
+    expect(dtos.find((d) => d.bucket === "excluded")).toBeUndefined();
+    expect(dtos.map((d) => d.grantId)).not.toContain("b");
+  });
+
+  it("un maybe no puntuado queda sin score y 'pending'", () => {
+    const dtos = buildAlertDTOs(grants, outcome, okScore);
+
+    const maybe = dtos.find((d) => d.bucket === "maybe");
+    expect(maybe).toBeDefined();
+    expect(maybe?.grantId).toBe("c");
+    expect(maybe?.score).toBeNull();
+    expect(maybe?.reason).toBeNull();
+    expect(maybe?.aiStatus).toBe("pending");
   });
 
   it("con fallback: matched refleja el fallback del scorer", () => {

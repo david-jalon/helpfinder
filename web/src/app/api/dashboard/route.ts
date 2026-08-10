@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/supabase/server";
-import { getProfile, getAlertsForCurrentUser, updateAlertBuckets } from "@/lib/db";
+import { getProfile, getAlertsForCurrentUser, updateAlertBuckets, deleteAlerts } from "@/lib/db";
 import { getGrantsSeenByIds } from "@/lib/grants/feed";
 import {
   runAlerts,
@@ -62,6 +62,9 @@ export async function GET() {
 
     const rebucketed = rebucketPersisted(profile, persistedRows, grantById);
     await updateAlertBuckets(user.id, rebucketed.updates);
+
+    // 2b) Las reclasificadas como excluded ya no aplican a este perfil.
+    await deleteAlerts(user.id, rebucketed.deletes);
 
     // 3) Fusión del diario
     const alerts = mergeAlertLists(fresh.alerts, rebucketed.alerts);

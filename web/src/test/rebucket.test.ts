@@ -121,26 +121,25 @@ describe("rebucketPersisted", () => {
     ]);
   });
 
-  it("mantiene excluded cuando la ayuda es solo para personas jurídicas", () => {
+  it("elimina la fila cuando el matcher la reclasifica como excluded", () => {
     const grant = makeSeen("1", {
       beneficiaryTypes: ["PERSONAS JURÍDICAS QUE NO DESARROLLAN ACTIVIDAD ECONÓMICA"],
       impactRegions: ["ES120 - Asturias"],
     });
     const row = makeRow({ grant_id: "1", bucket: "maybe" });
 
-    const { alerts, updates } = rebucketPersisted(
+    const { alerts, updates, deletes } = rebucketPersisted(
       makeProfile(),
       [row],
       new Map([["1", grant]])
     );
 
-    expect(alerts[0].bucket).toBe("excluded");
-    expect(alerts[0].rule).toBe("beneficiario");
-    expect(alerts[0].decision).toBe("posible");
-    expect(updates[0].bucket).toBe("excluded");
+    expect(alerts).toEqual([]);
+    expect(updates).toEqual([]);
+    expect(deletes).toContain("alert-1");
   });
 
-  it("no genera updates cuando el bucket ya está al día", () => {
+  it("elimina la fila excluded aunque ya estuviera como excluded", () => {
     const grant = makeSeen("1", {
       beneficiaryTypes: ["PERSONAS JURÍDICAS QUE NO DESARROLLAN ACTIVIDAD ECONÓMICA"],
       impactRegions: ["ES120 - Asturias"],
@@ -151,14 +150,15 @@ describe("rebucketPersisted", () => {
       match_reasons: [],
     });
 
-    const { alerts, updates } = rebucketPersisted(
+    const { alerts, updates, deletes } = rebucketPersisted(
       makeProfile(),
       [row],
       new Map([["1", grant]])
     );
 
-    expect(alerts[0].bucket).toBe("excluded");
+    expect(alerts).toEqual([]);
     expect(updates).toEqual([]);
+    expect(deletes).toContain("alert-1");
   });
 
   it("deja pasar sin grant con el DTO persistido tal cual", () => {
@@ -185,34 +185,25 @@ describe("rebucketPersisted", () => {
 });
 
 describe("isNoiseAlert", () => {
-  it("considera ruido un excluded por beneficiario", () => {
+  it("considera ruido cualquier excluded (no se debe mostrar)", () => {
     expect(
       isNoiseAlert(makeDto({ bucket: "excluded", rule: "beneficiario" }))
     ).toBe(true);
-  });
-
-  it("no considera ruido un excluded por región", () => {
     expect(
       isNoiseAlert(makeDto({ bucket: "excluded", rule: "region" }))
-    ).toBe(false);
+    ).toBe(true);
   });
 
-  it("considera ruido un maybe sin IA (fallback)", () => {
+  it("no considera ruido un maybe ni un matched (se muestran)", () => {
     expect(
       isNoiseAlert(makeDto({ bucket: "maybe", aiStatus: "fallback" }))
-    ).toBe(true);
+    ).toBe(false);
     expect(
       isNoiseAlert(makeDto({ bucket: "maybe", aiStatus: "pending" }))
-    ).toBe(true);
-  });
-
-  it("no considera ruido un maybe con IA (ok)", () => {
+    ).toBe(false);
     expect(
       isNoiseAlert(makeDto({ bucket: "maybe", aiStatus: "ok" }))
     ).toBe(false);
-  });
-
-  it("no considera ruido un matched", () => {
     expect(
       isNoiseAlert(makeDto({ bucket: "matched", aiStatus: "fallback" }))
     ).toBe(false);
