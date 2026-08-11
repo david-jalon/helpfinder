@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, type FormEvent } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from "react";
 import AppHeader from "@/components/app-header";
 import type { GrantItem } from "@/lib/domain/grants";
+import { sortResults } from "@/lib/grants/sort";
 import styles from "./page.module.css";
 
 type SearchState = "idle" | "loading" | "done" | "error";
@@ -243,8 +244,6 @@ export default function Home() {
         if (typeof regionId === "number") params.set("regionId", String(regionId));
         if (fechaDesde) params.set("fechaDesde", fechaDesde);
         if (fechaHasta) params.set("fechaHasta", fechaHasta);
-        if (order) params.set("order", order);
-        if (direccion) params.set("direccion", direccion);
 
         const res = await fetch(
           `/api/grants/search?${params.toString()}`,
@@ -269,7 +268,7 @@ export default function Home() {
 
     void search();
     return () => controller.abort();
-  }, [query, tipoAdmin, regionId, fechaDesde, fechaHasta, order, direccion, page]);
+  }, [query, tipoAdmin, regionId, fechaDesde, fechaHasta, page]);
 
   function handleSearch(e: FormEvent) {
     e.preventDefault();
@@ -294,16 +293,14 @@ export default function Home() {
     setFechaHasta(fechaHastaInput);
   }
 
-  // Orden y dirección se aplican al instante, sin pulsar "Buscar ayudas":
-  // al cambiar se refresca la búsqueda desde la primera página.
+  // Orden y dirección se aplican al instante sobre los resultados ya
+  // cargados (sortResults), sin volver a llamar a la API.
   function handleOrderChange(value: string) {
     setOrder(value);
-    setPage(1);
   }
 
   function handleDireccionChange(value: "asc" | "desc") {
     setDireccion(value);
-    setPage(1);
   }
 
   function handleClear() {
@@ -328,6 +325,12 @@ export default function Home() {
   const hasResults = results.length > 0;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const showResults = hasResults && (state === "done" || state === "loading");
+  // Orden local al instante: cambiar "Ordenar por"/"Dirección" solo reorden
+  // los resultados ya cargados, sin volver a consultar BDNS.
+  const sortedResults = useMemo(
+    () => sortResults(results, order, direccion),
+    [results, order, direccion]
+  );
   // Los controles de orden/dirección solo aparecen tras hacer una búsqueda.
   const showSortControls = state === "done" || state === "loading" || state === "error";
 
@@ -536,7 +539,7 @@ export default function Home() {
               <strong>{total}</strong> resultado{total !== 1 ? "s" : ""}
             </p>
             <ul className={styles.resultsList}>
-              {results.map((grant) => (
+              {sortedResults.map((grant) => (
                 <li key={grant.id} className={styles.resultCard}>
                   <div className={styles.resultTop}>
                     <div className={styles.resultRef}>
