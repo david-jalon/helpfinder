@@ -29,16 +29,26 @@ function toBdnsDate(value?: string): string | null {
   return null;
 }
 
-function buildSearchUrl(endpoint: string, params: SearchGrantsParams): string {
+export function buildSearchUrl(
+  endpoint: string,
+  params: SearchGrantsParams,
+  descripcion?: string
+): string {
   const url = new URL(endpoint);
 
   // BDNS pagina desde 0, nuestra API expone page desde 1.
   const pageZeroBased = Math.max(0, params.page - 1);
 
-  if (params.q) {
-    url.searchParams.set("descripcion", params.q);
-    // 2 = alguna de las palabras (más flexible para texto libre).
-    url.searchParams.set("descripcionTipoBusqueda", "2");
+  // `descripcion` desplaza a `params.q`: se usa cuando la consulta se ha
+  // dividido en grupos (comas → OR). Sin ella, se envía `params.q` tal cual.
+  const queryText = descripcion ?? params.q;
+
+  if (queryText) {
+    url.searchParams.set("descripcion", queryText);
+    // 1 = todas las palabras: exige que TODAS las palabras del grupo estén.
+    // Con "2" (alguna palabra) bastaba "eléctrica" para colar ayudas ajenas
+    // a la búsqueda (p. ej. «INSTALACIÓN ELÉCTRICA» al buscar una bici).
+    url.searchParams.set("descripcionTipoBusqueda", "1");
   }
 
   if (params.order) {
@@ -153,6 +163,57 @@ function normalizeRawToGrants(
   return { items, total, page, pageSize };
 }
 
+/**
+ * Divide una consulta libre en grupos de palabras.
+ * - Sin comas → un solo grupo ("bici electrica").
+ * - Con comas o punto y coma → cada trozo es una alternativa (OR), el
+ *   formato que sugiere el propio placeholder del buscador
+ *   ("digitalización, autónomos, I+D"). Sin texto → sin grupos.
+ */
+export function splitQueryGroups(q: string | undefined): string[] {
+  if (!q) return [];
+  return q
+    .split(/[,;]/)
+    .map((group) => group.trim())
+    .filter((group) => group.length > 0);
+}
+
+/**
+ * Une los resultados de varios grupos (comas → OR), sin duplicados.
+ * Cuando una convocatoria aparece en varios grupos, gana la del primero.
+ */
+export function mergeGroupResults(groups: GrantsSearchResult[]): GrantItem[] {
+  const items: GrantItem[] = [];
+  const seen = new Set<string>();
+
+  for (const result of groups) {
+    for (const item of result.items) {
+      if (seen.has(item.id)) continue;
+      seen.add(item.id);
+      items.push(item);
+    }
+  }
+
+  return items;
+}
+
+async function fetchSearchPage(
+  url: string,
+  retries: number,
+  timeoutMs: number,
+  page: number,
+  pageSize: number
+): Promise<GrantsSearchResult> {
+  const cached = getCachedSearch(url);
+  if (cached) return cached;
+
+  const res = await fetchWithRetry(url, retries, timeoutMs);
+  const raw = (await res.json()) as BdnsRawResponse;
+  const result = normalizeRawToGrants(raw, page, pageSize);
+  setCachedSearch(url, result);
+  return result;
+}
+
 export async function searchGrants(
   params: SearchGrantsParams
 ): Promise<GrantsSearchResult> {
@@ -164,17 +225,41 @@ export async function searchGrants(
   const timeoutMs = getEnvNumber("BDNS_TIMEOUT_MS", 12000);
   const retries = getEnvNumber("BDNS_RETRIES", 2);
 
-  const url = buildSearchUrl(endpoint, params);
+  const groups = splitQueryGroups(params.q);
 
-  const cached = getCachedSearch(url);
-  if (cached) {
-    return cached;
+  // Caso habitual: una frase ("bici electrica"). Una sola llamada a BDNS
+  // con "todas las palabras", así la paginación y el total son los suyos.
+  if (groups.length <= 1) {
+    const url = buildSearchUrl(endpoint, params, groups[0]);
+    return fetchSearchPage(url, retries, timeoutMs, params.page, params.pageSize);
   }
 
-  const res = await fetchWithRetry(url, retries, timeoutMs);
+  // Con comas el usuario pide ALTERNATIVAS (OR). BDNS no sabe booleanos
+  // agrupados, así que se consulta cada grupo por separado (AND interno)
+  // y se fusiona aquí. Cada grupo trae hasta `page * pageSize` resultados
+  // (tope 100) para que la página pedida siempre tenga datos; el `total`
+  // es el tamaño de la unión y la paginación se aplica localmente.
+  const perGroup = Math.min(params.page * params.pageSize, 100);
 
-  const raw = (await res.json()) as BdnsRawResponse;
-  const result = normalizeRawToGrants(raw, params.page, params.pageSize);
-  setCachedSearch(url, result);
-  return result;
+  const groupPages: GrantsSearchResult[] = [];
+  for (const group of groups) {
+    const groupParams: SearchGrantsParams = {
+      ...params,
+      q: undefined,
+      page: 1,
+      pageSize: perGroup,
+    };
+    const url = buildSearchUrl(endpoint, groupParams, group);
+    groupPages.push(await fetchSearchPage(url, retries, timeoutMs, 1, perGroup));
+  }
+
+  const merged = mergeGroupResults(groupPages);
+  const start = (params.page - 1) * params.pageSize;
+
+  return {
+    items: merged.slice(start, start + params.pageSize),
+    total: merged.length,
+    page: params.page,
+    pageSize: params.pageSize,
+  };
 }
