@@ -12,7 +12,7 @@ import {
   type AlertDTO,
   type AlertDecision,
 } from "@/lib/dashboard/triage";
-import { deadlineState, deadlineView } from "@/lib/domain/deadline";
+import { deadlineState, deadlineView, resolveEffectiveDeadline } from "@/lib/domain/deadline";
 import styles from "./dashboard.module.css";
 
 /**
@@ -602,34 +602,57 @@ function Regions({ regions }: { regions: string[] }) {
 }
 
 function Deadline({ alert }: { alert: AlertDTO }) {
-  const start = alert.applicationStartDate;
-  const end = alert.applicationEndDate;
-  const startText = alert.applicationStartText;
-  const endText = alert.applicationEndText;
-  const hasAny = start || end || startText || endText || alert.openEnded;
+  const resolved = resolveEffectiveDeadline({
+    startDate: alert.applicationStartDate,
+    startText: alert.applicationStartText,
+    endDate: alert.applicationEndDate,
+    endText: alert.applicationEndText,
+    openEnded: alert.openEnded,
+    publicationDate: alert.publicationDate,
+  });
 
-  if (!hasAny) return null;
+  const originalText = [
+    alert.applicationStartText,
+    alert.applicationEndText,
+  ]
+    .filter(Boolean)
+    .join(" / ");
 
-  const state = deadlineState(end, alert.openEnded);
+  if (resolved.byAnnouncement && !alert.openEnded) {
+    if (!originalText) return null;
+    return (
+      <p className={styles.deadline}>
+        <span className={`${styles.deadlineBadge} ${styles.deadline_indefinido}`}>
+          Plazo por anuncio
+        </span>
+      </p>
+    );
+  }
+
+  const state = deadlineState(resolved.end, alert.openEnded);
   const view = deadlineView(state);
+
+  const fmt = (d: Date | null) =>
+    d
+      ? `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`
+      : null;
 
   let range: string;
   if (alert.openEnded) {
     range = "Solicitud abierta";
-  } else if (end) {
-    range = `${start || "?"} → ${end}`;
-  } else if (startText || endText) {
-    range = [startText, endText].filter(Boolean).join(" / ");
+  } else if (resolved.end) {
+    range = `${fmt(resolved.start) || "?"} → ${fmt(resolved.end)}`;
   } else {
     range = "Plazo a consultar";
   }
 
   return (
-    <p className={styles.deadline}>
+    <p className={styles.deadline} title={originalText || undefined}>
       <span className={`${styles.deadlineBadge} ${styles[`deadline_${view.status}`]}`}>
         {view.label || "Plazo"}
       </span>
       <span className={styles.deadlineRange}>{range}</span>
+      {resolved.inferred && <span className={styles.deadlineHint}>· aprox.</span>}
     </p>
   );
 }

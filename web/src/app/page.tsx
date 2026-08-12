@@ -4,7 +4,7 @@ import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from "rea
 import AppHeader from "@/components/app-header";
 import GrantDetailModal from "@/components/grant-detail-modal";
 import type { GrantItem } from "@/lib/domain/grants";
-import { deadlineState, deadlineView } from "@/lib/domain/deadline";
+import { deadlineState, deadlineView, resolveEffectiveDeadline } from "@/lib/domain/deadline";
 import { sortResults } from "@/lib/grants/sort";
 import styles from "./page.module.css";
 
@@ -41,41 +41,61 @@ type StampProps = {
 };
 
 /**
- * Línea de plazo de solicitud de una ayuda en los resultados. Muestra el
- * rango de solicitud (inicio → fin) y, si aplica, un estado/badge.
- * Cuando no hay fecha concreta pero sí texto referencial (ej. "DÍA SIGUIENTE
- * DE SU PUBLICACIÓN"), se muestra el texto tal cual.
+ * Línea de plazo de solicitud de una ayuda en los resultados.
+ * - Fechas concretas → rango numérico + estado.
+ * - Texto referencial inferible (con fecha de publicación) → rango inferido + estado.
+ * - Si no hay nada calculable → badge corto "Plazo por anuncio" (texto completo
+ *   queda solo en el modal de detalle).
  */
 function Deadline({ grant }: { grant: GrantItem }) {
-  const start = grant.applicationStartDate;
-  const end = grant.applicationEndDate;
-  const startText = grant.applicationStartText;
-  const endText = grant.applicationEndText;
-  const hasAny =
-    start || end || startText || endText || grant.openEnded;
+  const resolved = resolveEffectiveDeadline({
+    startDate: grant.applicationStartDate,
+    startText: grant.applicationStartText,
+    endDate: grant.applicationEndDate,
+    endText: grant.applicationEndText,
+    openEnded: grant.openEnded,
+    publicationDate: grant.publicationDate,
+  });
 
-  if (!hasAny) return null;
+  const originalText = [grant.applicationStartText, grant.applicationEndText]
+    .filter(Boolean)
+    .join(" / ");
 
-  const state = deadlineState(end, grant.openEnded);
+  if (resolved.byAnnouncement && !grant.openEnded) {
+    if (!originalText) return null;
+    return (
+      <div className={styles.resultDeadline}>
+        <span className={`${styles.deadlineBadge} ${styles.deadline_indefinido}`}>
+          Plazo por anuncio
+        </span>
+      </div>
+    );
+  }
+
+  const state = deadlineState(resolved.end, grant.openEnded);
   const view = deadlineView(state);
+
+  const fmt = (d: Date | null) =>
+    d
+      ? `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`
+      : null;
 
   let range: string;
   if (grant.openEnded) {
     range = "Solicitud abierta";
-  } else if (end) {
-    range = `${start || "?"} → ${end}`;
-  } else if (startText || endText) {
-    range = [startText, endText].filter(Boolean).join(" / ");
+  } else if (resolved.end) {
+    range = `${fmt(resolved.start) || "?"} → ${fmt(resolved.end)}`;
   } else {
     range = "Plazo a consultar";
   }
 
   return (
-    <div className={styles.resultDeadline}>
+    <div className={styles.resultDeadline} title={originalText || undefined}>
       <span className={`${styles.deadlineBadge} ${styles[`deadline_${view.status}`]}`}>
         {view.label || "Plazo"}
       </span>
       <span className={styles.deadlineRange}>{range}</span>
+      {resolved.inferred && <span className={styles.deadlineHint}>· aprox.</span>}
     </div>
   );
 }

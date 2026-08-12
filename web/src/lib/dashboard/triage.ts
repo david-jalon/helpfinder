@@ -39,6 +39,8 @@ export type AlertDTO = {
   applicationEndText: string | null;
   /** true = se puede solicitar indefinidamente. */
   openEnded: boolean;
+  /** Fecha de publicación (DD/MM/YYYY o ISO, según la fuente), para inferir plazos referenciales. */
+  publicationDate: string | null;
 };
 
 /** Fila mínima de `user_alerts` que necesita el mapeador puro. */
@@ -163,6 +165,7 @@ export function persistedAlertDTO(
         ? grant.eligibilityJson.applicationEndText
         : null,
     openEnded: grant?.eligibilityJson?.openEnded === true,
+    publicationDate: grant?.publicationDate ?? null,
   };
 }
 

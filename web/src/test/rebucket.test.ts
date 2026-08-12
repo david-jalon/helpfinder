@@ -50,6 +50,7 @@ function makeSeen(
     title: item.title,
     organization: item.organization,
     sourceUrl: item.sourceUrl,
+    publicationDate: null,
     firstSeenAt: "2026-01-01T00:00:00Z",
     eligibilityJson: {
       beneficiaryTypes: item.beneficiaryTypes,
@@ -96,6 +97,7 @@ function makeDto(overrides: Partial<AlertDTO> = {}): AlertDTO {
     applicationStartText: null,
     applicationEndText: null,
     openEnded: false,
+    publicationDate: null,
     ...overrides,
   };
 }

@@ -31,6 +31,7 @@ function makeGrant(overrides: Partial<SeenGrant> = {}): SeenGrant {
     title: "Ayuda a la digitalización",
     organization: "Comunidad de Madrid",
     sourceUrl: "https://example.com/a",
+    publicationDate: null,
     firstSeenAt: "2026-08-05T04:00:00Z",
     eligibilityJson: null,
     enrichedAt: null,
@@ -58,6 +59,7 @@ function makeDto(overrides: Partial<AlertDTO> = {}): AlertDTO {
     applicationStartText: null,
     applicationEndText: null,
     openEnded: false,
+    publicationDate: null,
     ...overrides,
   };
 }

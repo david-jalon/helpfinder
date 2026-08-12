@@ -53,6 +53,7 @@ create table if not exists public.grants_seen (
   title text,
   organization text,
   source_url text,
+  publication_date text,             -- fecha de publicación (DD/MM/YYYY) para inferir plazos referenciales
   first_seen_at timestamptz default now(),
   eligibility_json jsonb,            -- elegibilidad BDNS (gratis, sin IA)
   detail_json jsonb,                 -- detalle enriquecido (cache)

@@ -14,6 +14,7 @@ export type SeenGrant = {
   title: string;
   organization: string | null;
   sourceUrl: string | null;
+  publicationDate: string | null;
   firstSeenAt: string;
   eligibilityJson: Record<string, unknown> | null;
   enrichedAt: string | null;
@@ -25,6 +26,7 @@ function rowToSeenGrant(row: Record<string, unknown>): SeenGrant {
     title: String(row.title ?? ""),
     organization: row.organization ? String(row.organization) : null,
     sourceUrl: row.source_url ? String(row.source_url) : null,
+    publicationDate: row.publication_date ? String(row.publication_date) : null,
     firstSeenAt: String(row.first_seen_at ?? ""),
     eligibilityJson: (row.eligibility_json as Record<string, unknown>) ?? null,
     enrichedAt: row.enriched_at ? String(row.enriched_at) : null,

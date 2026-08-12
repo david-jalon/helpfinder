@@ -287,6 +287,12 @@
   color: var(--fg);
 }
 
+.deadlineHint {
+  font-weight: 500;
+  font-style: italic;
+  color: var(--fg-muted);
+}
+
 .deadlineBadge {
   display: inline-block;
   padding: 0.15rem 0.5rem;

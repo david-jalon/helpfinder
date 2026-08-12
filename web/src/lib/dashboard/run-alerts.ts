@@ -88,7 +88,7 @@ export function grantItemFromSeen(row: SeenGrant): GrantItem {
     id: row.numConvocatoria,
     title: row.title,
     organization: row.organization,
-    publicationDate: null,
+    publicationDate: row.publicationDate,
     deadlineDate: null,
     amount: null,
     sourceUrl: row.sourceUrl,
@@ -178,6 +178,7 @@ export function buildAlertDTOs(
           ? row.eligibilityJson.applicationEndText
           : null,
       openEnded: row?.eligibilityJson?.openEnded === true,
+      publicationDate: row?.publicationDate ?? null,
     };
   };
 

@@ -59,6 +59,7 @@ async function upsertGrantsSeen(
     title: string;
     organization: string | null;
     sourceUrl: string | null;
+    publicationDate?: string | null;
     beneficiaryTypes?: string[];
     sectors?: string[];
     impactRegions?: string[];
@@ -80,6 +81,7 @@ async function upsertGrantsSeen(
     title: g.title,
     organization: g.organization,
     source_url: g.sourceUrl,
+    publication_date: g.publicationDate ?? null,
     eligibility_json: {
       beneficiaryTypes: g.beneficiaryTypes ?? [],
       sectors: g.sectors ?? [],

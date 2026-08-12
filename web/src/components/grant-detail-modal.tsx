@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { GrantDetail } from "@/lib/domain/grants";
-import { deadlineState, deadlineView, parseAppDate } from "@/lib/domain/deadline";
+import { deadlineState, deadlineView, resolveEffectiveDeadline } from "@/lib/domain/deadline";
 import styles from "./grant-detail-modal.module.css";
 
 type LoadState =
@@ -132,30 +132,43 @@ export default function GrantDetailModal({
 }
 
 function DeadlineBlock({ grant }: { grant: Partial<GrantDetail> }) {
-  const state = deadlineState(grant.applicationEndDate, grant.openEnded);
+  const resolved = resolveEffectiveDeadline({
+    startDate: grant.applicationStartDate,
+    startText: grant.applicationStartText,
+    endDate: grant.applicationEndDate,
+    endText: grant.applicationEndText,
+    openEnded: grant.openEnded,
+    publicationDate: grant.publicationDate,
+  });
+
+  const state = deadlineState(resolved.end, grant.openEnded);
   const view = deadlineView(state);
 
-  const fmt = (value: string | null | undefined) =>
-    parseAppDate(value)
-      ? parseAppDate(value)!.toLocaleDateString("es-ES", {
+  const fmtLong = (d: Date | null) =>
+    d
+      ? d.toLocaleDateString("es-ES", {
           day: "2-digit",
           month: "long",
           year: "numeric",
         })
       : null;
 
-  const startDate = fmt(grant.applicationStartDate);
-  const endDate = fmt(grant.applicationEndDate);
   const startText = grant.applicationStartText;
   const endText = grant.applicationEndText;
 
-  const hasAny = grant.applicationStartDate || grant.applicationEndDate || startText || endText || grant.openEnded;
+  const hasAny =
+    resolved.start || resolved.end || startText || endText || grant.openEnded;
   if (!hasAny) return null;
 
-  const startLabel = startDate ?? startText ?? "—";
-  const endLabel = grant.openEnded
+  const renderedStart =
+    grant.applicationStartDate || resolved.start
+      ? fmtLong(resolved.start)
+      : startText;
+  const renderedEnd = grant.openEnded
     ? "Sin fecha de cierre"
-    : endDate ?? endText ?? "—";
+    : grant.applicationEndDate || resolved.end
+      ? fmtLong(resolved.end)
+      : endText;
 
   return (
     <section className={styles.plazo} aria-label="Plazo de solicitud">
@@ -170,11 +183,15 @@ function DeadlineBlock({ grant }: { grant: Partial<GrantDetail> }) {
       <div className={styles.plazoGrid}>
         <div className={styles.plazoItem}>
           <span className={styles.plazoLabel}>Inicio</span>
-          <span className={styles.plazoValue}>{startLabel}</span>
+          <span className={styles.plazoValue}>{renderedStart}</span>
+          {!resolved.start && startText && <span className={styles.plazoSub}>{startText}</span>}
         </div>
         <div className={styles.plazoItem}>
           <span className={styles.plazoLabel}>Fin</span>
-          <span className={styles.plazoValue}>{endLabel}</span>
+          <span className={styles.plazoValue}>{renderedEnd}</span>
+          {!resolved.end && endText && grant.openEnded !== true && (
+            <span className={styles.plazoSub}>{endText}</span>
+          )}
         </div>
       </div>
     </section>
