@@ -96,13 +96,18 @@ function makeDto(overrides: Partial<AlertDTO> = {}): AlertDTO {
 }
 
 describe("rebucketPersisted", () => {
-  it("re-clasifica matched por región conservando triaje y score", () => {
+  it("re-clasifica a matched una fila sin decidir, conservando el score", () => {
     const grant = makeSeen("1", {
       title: "Subvención CEE en Asturias",
       beneficiaryTypes: ["PYME Y PERSONAS FÍSICAS QUE DESARROLLAN ACTIVIDAD ECONÓMICA"],
       impactRegions: ["ES120 - Asturias"],
     });
-    const row = makeRow({ grant_id: "1", bucket: "excluded", match_reasons: [] });
+    const row = makeRow({
+      grant_id: "1",
+      bucket: "excluded",
+      match_reasons: [],
+      decision: null,
+    });
 
     const { alerts, updates } = rebucketPersisted(
       makeProfile(),
@@ -112,7 +117,7 @@ describe("rebucketPersisted", () => {
 
     expect(alerts[0].bucket).toBe("matched");
     expect(alerts[0].rule).toBeNull();
-    expect(alerts[0].decision).toBe("posible");
+    expect(alerts[0].decision).toBeNull();
     expect(alerts[0].score).toBe(80);
     expect(updates).toEqual([
       { grantId: "1", bucket: "matched", matchReasons: [
@@ -127,7 +132,7 @@ describe("rebucketPersisted", () => {
       beneficiaryTypes: ["PERSONAS JURÍDICAS QUE NO DESARROLLAN ACTIVIDAD ECONÓMICA"],
       impactRegions: ["ES120 - Asturias"],
     });
-    const row = makeRow({ grant_id: "1", bucket: "maybe" });
+    const row = makeRow({ grant_id: "1", bucket: "maybe", decision: null });
 
     const { alerts, updates, deletes } = rebucketPersisted(
       makeProfile(),
@@ -149,6 +154,7 @@ describe("rebucketPersisted", () => {
       grant_id: "1",
       bucket: "excluded",
       match_reasons: [],
+      decision: null,
     });
 
     const { alerts, updates, deletes } = rebucketPersisted(
@@ -175,6 +181,60 @@ describe("rebucketPersisted", () => {
     expect(alerts[0].bucket).toBe("matched");
     expect(alerts[0].decision).toBe("posible");
     expect(updates).toEqual([]);
+  });
+
+  it("conserva un «Seguir» desde la landing aunque el matcher lo excluya", () => {
+    // Sigue desde la landing (Fase 14): grants_seen aún sin elegibilidad
+    // (eligibility_json = null) → impactRegions vacío → el matcher lo
+    // clasificaría como excluded por región. El triaje debe mandar.
+    const grant = makeSeen("1", {
+      title: "Ayuda recién seguida",
+      beneficiaryTypes: [],
+      impactRegions: [],
+    });
+    const row = makeRow({
+      grant_id: "1",
+      bucket: "matched",
+      ai_status: "pending",
+      decision: "seguir",
+    });
+
+    const { alerts, updates, deletes } = rebucketPersisted(
+      makeProfile(),
+      [row],
+      new Map([["1", grant]])
+    );
+
+    expect(deletes).toEqual([]);
+    expect(updates).toEqual([]);
+    expect(alerts).toHaveLength(1);
+    expect(alerts[0].grantId).toBe("1");
+    expect(alerts[0].decision).toBe("seguir");
+    expect(alerts[0].bucket).toBe("matched");
+    expect(alerts[0].aiStatus).toBe("pending");
+    expect(alerts[0].title).toBe("Ayuda recién seguida");
+  });
+
+  it("conserva cualquier triaje decidido (posible/denegada) aunque el matcher excluya", () => {
+    const grant = makeSeen("1", {
+      beneficiaryTypes: ["PERSONAS JURÍDICAS QUE NO DESARROLLAN ACTIVIDAD ECONÓMICA"],
+      impactRegions: ["ES120 - Asturias"],
+    });
+
+    for (const decision of ["posible", "denegada"] as const) {
+      const row = makeRow({ grant_id: "1", bucket: "maybe", decision });
+
+      const { alerts, updates, deletes } = rebucketPersisted(
+        makeProfile(),
+        [row],
+        new Map([["1", grant]])
+      );
+
+      expect(deletes).toEqual([]);
+      expect(updates).toEqual([]);
+      expect(alerts).toHaveLength(1);
+      expect(alerts[0].decision).toBe(decision);
+    }
   });
 
   it("usa el DTO que ya viene de grantItemFromSeen (compatibilidad)", () => {

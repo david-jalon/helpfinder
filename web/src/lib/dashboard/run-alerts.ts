@@ -180,8 +180,16 @@ export type RebucketResult = {
  * recalcula `bucket` y `match_reasons` (que es lo que decide el UI).
  * `rule` se rellena desde el matcher para que el UI pueda cribar el ruido.
  *
- * Las filas que el matcher reclasifica como `excluded` ya no aplican al
- * perfil: no se devuelven en `alerts` ni en `updates`, sino en `deletes`.
+ * El triaje del usuario es AUTORITATIVO: las filas con `decision` no nula
+ * (seguir/posible/denegada) se conservan tal cual, sin re-bucketeo ni
+ * borrado. Un «Seguir» desde la landing no debe desaparecer porque el
+ * matcher (o la falta de elegibilidad aún sin enriquecer) lo clasifique
+ * como excluded.
+ *
+ * Las filas SIN decidir (`decision = null`) son las únicas que se
+ * re-bucketean; las que el matcher reclasifica como `excluded` ya no
+ * aplican al perfil: no se devuelven en `alerts` ni en `updates`, sino
+ * en `deletes`.
  */
 export function rebucketPersisted(
   profile: Profile,
@@ -196,6 +204,13 @@ export function rebucketPersisted(
     const grant = grantById.get(row.grant_id);
     if (!grant) {
       alerts.push(persistedAlertDTO(row, null));
+      continue;
+    }
+
+    // El usuario ya decidió sobre esta ayuda: su triaje manda. Se conserva
+    // tal cual (bucket, motivos y rule incluidos) y no se borra jamás.
+    if (row.decision !== null && isAlertDecision(row.decision)) {
+      alerts.push(persistedAlertDTO(row, grant));
       continue;
     }
 
