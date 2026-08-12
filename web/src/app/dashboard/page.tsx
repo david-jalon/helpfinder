@@ -448,6 +448,8 @@ function Ready({ data }: { data: DashboardData }) {
             title: detailAlert.title,
             organization: detailAlert.organization,
             sourceUrl: detailAlert.sourceUrl,
+            amount: detailAlert.amount,
+            beneficiaryTypes: detailAlert.beneficiaryTypes,
             applicationStartDate: detailAlert.applicationStartDate,
             applicationEndDate: detailAlert.applicationEndDate,
             applicationStartText: detailAlert.applicationStartText,
@@ -598,7 +600,7 @@ function Card({
 
 function Regions({ regions }: { regions: string[] }) {
   if (regions.length === 0) return null;
-  return <p className={styles.regions}>📍 {regions.join(" · ")}</p>;
+  return <p className={styles.regions}>{regions.join(" · ")}</p>;
 }
 
 type DeadlineFields = {

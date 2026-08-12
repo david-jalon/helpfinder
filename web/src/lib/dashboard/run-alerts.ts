@@ -77,12 +77,14 @@ export {
 /*  Puro: fila grants_seen → GrantItem con elegibilidad                */
 /* ------------------------------------------------------------------ */
 
+export function stringArray(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.map((v) => String(v)).filter((v) => v.trim().length > 0)
+    : [];
+}
+
 export function grantItemFromSeen(row: SeenGrant): GrantItem {
   const eligibility = (row.eligibilityJson ?? {}) as Record<string, unknown>;
-  const stringArray = (value: unknown): string[] =>
-    Array.isArray(value)
-      ? value.map((v) => String(v)).filter((v) => v.trim().length > 0)
-      : [];
 
   return {
     id: row.numConvocatoria,
@@ -90,7 +92,6 @@ export function grantItemFromSeen(row: SeenGrant): GrantItem {
     organization: row.organization,
     publicationDate: row.publicationDate,
     deadlineDate: null,
-    amount: null,
     sourceUrl: row.sourceUrl,
     beneficiaryTypes: stringArray(eligibility.beneficiaryTypes),
     sectors: stringArray(eligibility.sectors),
@@ -118,6 +119,10 @@ export function grantItemFromSeen(row: SeenGrant): GrantItem {
         ? eligibility.applicationEndText
         : null,
     openEnded: eligibility.openEnded === true,
+    amount:
+      typeof eligibility.amount === "number" && Number.isFinite(eligibility.amount)
+        ? eligibility.amount
+        : null,
   };
 }
 
@@ -179,6 +184,12 @@ export function buildAlertDTOs(
           : null,
       openEnded: row?.eligibilityJson?.openEnded === true,
       publicationDate: row?.publicationDate ?? null,
+      amount:
+        typeof row?.eligibilityJson?.amount === "number" &&
+        Number.isFinite(row.eligibilityJson.amount)
+          ? row.eligibilityJson.amount
+          : null,
+      beneficiaryTypes: stringArray(row?.eligibilityJson?.beneficiaryTypes),
     };
   };
 

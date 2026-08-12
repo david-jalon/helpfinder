@@ -108,6 +108,8 @@ export default function GrantDetailModal({
 
             <DeadlineBlock grant={grant} />
 
+            <KeyDataBlock grant={grant} />
+
             {grant.description && (
               <p className={styles.description}>{grant.description}</p>
             )}
@@ -128,6 +130,46 @@ export default function GrantDetailModal({
         )}
       </div>
     </div>
+  );
+}
+
+function formatAmount(value: number | null | undefined): string | null {
+  if (value == null || !Number.isFinite(value) || value <= 0) return null;
+  return value.toLocaleString("es-ES", {
+    style: "currency",
+    currency: "EUR",
+    maximumFractionDigits: 0,
+  });
+}
+
+function KeyDataBlock({ grant }: { grant: Partial<GrantDetail> }) {
+  const amount = formatAmount(grant.amount);
+  const beneficiaries = grant.beneficiaryTypes ?? [];
+
+  if (!amount && beneficiaries.length === 0) return null;
+
+  return (
+    <section className={styles.datos} aria-label="Datos clave de la convocatoria">
+      <p className={styles.datosEyebrow}>Datos clave</p>
+      <div className={styles.datosGrid}>
+        {amount && (
+          <div className={styles.datosItem}>
+            <span className={styles.datosLabel}>Presupuesto de la convocatoria</span>
+            <span className={styles.datosValue}>{amount}</span>
+          </div>
+        )}
+        {beneficiaries.length > 0 && (
+          <div className={styles.datosItem}>
+            <span className={styles.datosLabel}>Beneficiario elegible</span>
+            <div className={styles.chips}>
+              {beneficiaries.map((b) => (
+                <span className={styles.chip} key={b}>{b}</span>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </section>
   );
 }
 

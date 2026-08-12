@@ -152,6 +152,65 @@
   color: var(--fg);
 }
 
+.datos {
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+  padding: 1.1rem 1.3rem;
+  margin: 1.25rem 0;
+  background: color-mix(in srgb, var(--bg) 60%, transparent);
+}
+
+.datosEyebrow {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--fg-muted);
+  margin-bottom: 0.75rem;
+}
+
+.datosGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.datosItem {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.datosLabel {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--fg-muted);
+}
+
+.datosValue {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--fg);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.chip {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--fg);
+  background: color-mix(in srgb, var(--fg) 8%, transparent);
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  padding: 0.25rem 0.7rem;
+}
+
 .description {
   font-size: 0.95rem;
   line-height: 1.6;

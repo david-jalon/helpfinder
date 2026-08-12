@@ -31,6 +31,7 @@ function makeSeenGrant(overrides: Partial<SeenGrant> = {}): SeenGrant {
     title: "Ayuda a la digitalización de pymes en Madrid",
     organization: "Comunidad de Madrid",
     sourceUrl: "https://example.com/1",
+    publicationDate: null,
     firstSeenAt: "2026-08-05T04:00:00Z",
     eligibilityJson: {
       beneficiaryTypes: ["PYME", "Sociedades"],

@@ -41,6 +41,10 @@ export type AlertDTO = {
   openEnded: boolean;
   /** Fecha de publicación (DD/MM/YYYY o ISO, según la fuente), para inferir plazos referenciales. */
   publicationDate: string | null;
+  /** Presupuesto total de la convocatoria en euros (BDNS «presupuestoTotal»), o null. */
+  amount: number | null;
+  /** Tipos de beneficiario elegibles (BDNS «tiposBeneficiarios»). */
+  beneficiaryTypes: string[];
 };
 
 /** Fila mínima de `user_alerts` que necesita el mapeador puro. */
@@ -166,6 +170,16 @@ export function persistedAlertDTO(
         : null,
     openEnded: grant?.eligibilityJson?.openEnded === true,
     publicationDate: grant?.publicationDate ?? null,
+    amount:
+      typeof grant?.eligibilityJson?.amount === "number" &&
+      Number.isFinite(grant.eligibilityJson.amount)
+        ? grant.eligibilityJson.amount
+        : null,
+    beneficiaryTypes: Array.isArray(grant?.eligibilityJson?.beneficiaryTypes)
+      ? grant.eligibilityJson.beneficiaryTypes
+          .map((v: unknown) => String(v))
+          .filter((v: string) => v.trim().length > 0)
+      : [],
   };
 }
 

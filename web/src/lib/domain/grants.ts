@@ -34,6 +34,10 @@ export type GrantDetail = {
   publicationDate: string | null;
   description: string | null;
   sourceUrl: string | null;
+  /** Presupuesto total de la convocatoria en euros (BDNS «presupuestoTotal»). */
+  amount?: number | null;
+  /** Tipos de beneficiario elegibles (BDNS «tiposBeneficiarios»). */
+  beneficiaryTypes?: string[];
   /** Fechas del periodo de solicitud (formato DD/MM/YYYY, null si no aplica). */
   applicationStartDate?: string | null;
   applicationEndDate?: string | null;

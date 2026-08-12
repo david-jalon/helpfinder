@@ -71,6 +71,27 @@ function extractApplicationDates(obj: Record<string, unknown>): {
   };
 }
 
+/**
+ * Normaliza el presupuesto total de una convocatoria (BDNS «presupuestoTotal»).
+ * - Número → se conserva.
+ * - String en formato español ("1.500,50") → se convierte a número.
+ * - Cualquier otra cosa o vacío → null.
+ */
+export function parseAmount(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value !== "string") return null;
+
+  const trimmed = value.trim().replace(/\s/g, "");
+  if (!trimmed) return null;
+
+  const normalized = trimmed
+    .replace(/\.(?=\d{3})/g, "") // separador de miles «.»
+    .replace(",", ".");           // separador decimal «,»
+
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 function rawToGrantDetail(raw: unknown, requestedNumConv: string): GrantDetail {
   const obj = (raw ?? {}) as Record<string, unknown>;
 
@@ -81,6 +102,9 @@ function rawToGrantDetail(raw: unknown, requestedNumConv: string): GrantDetail {
     ? buildInfosubvencionesConvocatoriaUrl(numeroConvocatoria)
     : null;
 
+  const amount = parseAmount(obj.presupuestoTotal);
+  const beneficiaryTypes = extractStrings(obj.tiposBeneficiarios);
+
   return {
     id: String(numeroConvocatoria ?? obj.id ?? "unknown"),
     title: typeof obj.descripcion === "string" ? obj.descripcion : "Sin título",
@@ -89,6 +113,8 @@ function rawToGrantDetail(raw: unknown, requestedNumConv: string): GrantDetail {
       typeof obj.fechaRecepcion === "string" ? obj.fechaRecepcion : null,
     description: typeof obj.descripcion === "string" ? obj.descripcion : null,
     sourceUrl,
+    ...(amount !== null && { amount }),
+    ...(beneficiaryTypes.length > 0 && { beneficiaryTypes }),
     ...extractApplicationDates(obj),
   };
 }
@@ -158,7 +184,7 @@ type EligibilityFields = Pick<
   | "applicationStartText"
   | "applicationEndText"
   | "openEnded"
->;
+> & { amount?: number | null };
 
 /**
  * Obtiene campos de elegibilidad de una convocatoria vía la API BDNS.
@@ -190,6 +216,7 @@ export async function fetchGrantEligibility(
     const json = (await res.json()) as Record<string, unknown>;
 
     const instruments = extractStrings(json.instrumentos);
+    const amount = parseAmount(json.presupuestoTotal);
 
     return {
       beneficiaryTypes: extractStrings(json.tiposBeneficiarios),
@@ -197,6 +224,7 @@ export async function fetchGrantEligibility(
       impactRegions: extractStrings(json.regiones),
       purpose: typeof json.descripcionFinalidad === "string" ? json.descripcionFinalidad : null,
       instrumentType: instruments.length > 0 ? instruments.join(", ") : null,
+      ...(amount !== null && { amount }),
       ...extractApplicationDates(json),
     };
   } catch {
@@ -225,6 +253,7 @@ export async function enrichGrantsWithEligibility(
         item.impactRegions = fields.impactRegions;
         item.purpose = fields.purpose;
         item.instrumentType = fields.instrumentType;
+        if (fields.amount != null) item.amount = fields.amount;
         item.applicationStartDate = fields.applicationStartDate;
         item.applicationEndDate = fields.applicationEndDate;
         item.applicationStartText = fields.applicationStartText;

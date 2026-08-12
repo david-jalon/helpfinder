@@ -60,6 +60,8 @@ function makeDto(overrides: Partial<AlertDTO> = {}): AlertDTO {
     applicationEndText: null,
     openEnded: false,
     publicationDate: null,
+    amount: null,
+    beneficiaryTypes: [],
     ...overrides,
   };
 }

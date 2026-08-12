@@ -65,6 +65,7 @@ async function upsertGrantsSeen(
     impactRegions?: string[];
     purpose?: string | null;
     instrumentType?: string | null;
+    amount?: number | null;
     applicationStartDate?: string | null;
     applicationEndDate?: string | null;
     applicationStartText?: string | null;
@@ -88,6 +89,7 @@ async function upsertGrantsSeen(
       impactRegions: g.impactRegions ?? [],
       purpose: g.purpose ?? null,
       instrumentType: g.instrumentType ?? null,
+      amount: g.amount ?? null,
       applicationStartDate: g.applicationStartDate ?? null,
       applicationEndDate: g.applicationEndDate ?? null,
       applicationStartText: g.applicationStartText ?? null,
