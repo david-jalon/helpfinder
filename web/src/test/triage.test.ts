@@ -7,8 +7,9 @@ import {
   isAlertDecision,
   mergeAlertLists,
   persistedAlertDTO,
+  triageActionsFor,
   type PersistedAlertRow,
-} from "@/lib/dashboard/run-alerts";
+} from "@/lib/dashboard/triage";
 
 function makeRow(overrides: Partial<PersistedAlertRow> = {}): PersistedAlertRow {
   return {
@@ -227,5 +228,34 @@ describe("buildTabSummary", () => {
       denegadas: 3,
       total: 7,
     });
+  });
+});
+
+describe("triageActionsFor", () => {
+  it("sin decidir muestra los tres botones", () => {
+    expect(triageActionsFor(null)).toEqual([
+      { key: "seguir", label: "Seguir" },
+      { key: "posible", label: "Posible" },
+      { key: "denegada", label: "Denegar" },
+    ]);
+  });
+
+  it("en seguimiento oculta el botón Seguir", () => {
+    const actions = triageActionsFor("seguir");
+    expect(actions.map((a) => a.key)).toEqual(["posible", "denegada"]);
+  });
+
+  it("en posibles oculta el botón Posible", () => {
+    const actions = triageActionsFor("posible");
+    expect(actions.map((a) => a.key)).toEqual(["seguir", "denegada"]);
+  });
+
+  it("en denegadas oculta Denegar y ofrece Eliminar", () => {
+    const actions = triageActionsFor("denegada");
+    expect(actions).toEqual([
+      { key: "seguir", label: "Seguir" },
+      { key: "posible", label: "Posible" },
+      { key: "eliminar", label: "Eliminar" },
+    ]);
   });
 });

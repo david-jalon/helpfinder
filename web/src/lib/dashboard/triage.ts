@@ -74,6 +74,41 @@ export function isAlertDecision(
 }
 
 /* ------------------------------------------------------------------ */
+/*  Puro: acciones de triaje visibles según el estado actual            */
+/* ------------------------------------------------------------------ */
+
+export type TriageAction =
+  | { key: "seguir"; label: string }
+  | { key: "posible"; label: string }
+  | { key: "denegada"; label: string }
+  | { key: "eliminar"; label: string };
+
+/**
+ * Botones de triaje que se muestran en una tarjeta según su `decision`.
+ * El botón del estado actual se oculta (la ayuda ya está ahí); en su
+ * lugar, una ayuda denegada ofrece «Eliminar» (borrado definitivo).
+ * - null (pendiente)      → Seguir · Posible · Denegar
+ * - "seguir"              → Posible · Denegar
+ * - "posible"             → Seguir · Denegar
+ * - "denegada"            → Seguir · Posible · Eliminar
+ */
+export function triageActionsFor(decision: AlertDecision): TriageAction[] {
+  const base: TriageAction[] = [
+    { key: "seguir", label: "Seguir" },
+    { key: "posible", label: "Posible" },
+    { key: "denegada", label: "Denegar" },
+  ];
+
+  const actions = base.filter((action) => action.key !== decision);
+
+  if (decision === "denegada") {
+    actions.push({ key: "eliminar", label: "Eliminar" });
+  }
+
+  return actions;
+}
+
+/* ------------------------------------------------------------------ */
 /*  Puro: fila user_alerts persistida (+ grants_seen) → DTO            */
 /* ------------------------------------------------------------------ */
 

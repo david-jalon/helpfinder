@@ -7,6 +7,7 @@ import { logout } from "@/lib/supabase/actions";
 import {
   buildTabSummary,
   isNoiseAlert,
+  triageActionsFor,
   type AlertDTO,
   type AlertDecision,
 } from "@/lib/dashboard/triage";
@@ -41,12 +42,6 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: "seguimiento", label: "En seguimiento" },
   { key: "posibles", label: "Posibles" },
   { key: "denegadas", label: "Denegadas" },
-];
-
-const DECISION_BTN: { key: Exclude<AlertDecision, null>; label: string }[] = [
-  { key: "seguir", label: "Seguir" },
-  { key: "posible", label: "Posible" },
-  { key: "denegada", label: "Denegar" },
 ];
 
 /** Score mínimo de IA para que un «maybe» entre en «Para ti». */
@@ -164,6 +159,8 @@ export default function DashboardPage() {
 function Ready({ data }: { data: DashboardData }) {
   const [activeTab, setActiveTab] = useState<TabKey>("pendientes");
   const [overrides, setOverrides] = useState<Record<string, AlertDecision>>({});
+  const [removedIds, setRemovedIds] = useState<Set<string>>(new Set());
+  const [pendingDelete, setPendingDelete] = useState<AlertDTO | null>(null);
   const [toast, setToast] = useState<{ alert: AlertDTO } | null>(null);
   const toastTimer = useRef<number | null>(null);
 
@@ -178,8 +175,9 @@ function Ready({ data }: { data: DashboardData }) {
           ...alert,
           decision: alert.id in overrides ? overrides[alert.id] : alert.decision,
         }))
-        .filter((alert) => !isNoiseAlert(alert)),
-    [data.alerts, overrides]
+        .filter((alert) => !isNoiseAlert(alert))
+        .filter((alert) => !removedIds.has(alert.id)),
+    [data.alerts, overrides, removedIds]
   );
 
   const summary = useMemo(() => buildTabSummary(alerts), [alerts]);
@@ -189,6 +187,16 @@ function Ready({ data }: { data: DashboardData }) {
       if (toastTimer.current) window.clearTimeout(toastTimer.current);
     };
   }, []);
+
+  // Cerrar el modal de confirmación con Escape.
+  useEffect(() => {
+    if (!pendingDelete) return;
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setPendingDelete(null);
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [pendingDelete]);
 
   function showToast(alert: AlertDTO) {
     if (toastTimer.current) window.clearTimeout(toastTimer.current);
@@ -219,6 +227,30 @@ function Ready({ data }: { data: DashboardData }) {
         return copy;
       });
     }
+  }
+
+  async function removeAlert(alert: AlertDTO) {
+    setRemovedIds((prev) => new Set(prev).add(alert.id));
+
+    try {
+      const res = await fetch(`/api/alerts/${alert.id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error();
+    } catch {
+      // Revertir el cambio optimista si la API falla.
+      setRemovedIds((prev) => {
+        const copy = new Set(prev);
+        copy.delete(alert.id);
+        return copy;
+      });
+    }
+  }
+
+  // El botón «Eliminar» solo abre el modal de confirmación; el borrado
+  // real lo hace removeAlert al confirmar.
+  function requestDelete(alert: AlertDTO) {
+    setPendingDelete(alert);
   }
 
   function undo() {
@@ -304,7 +336,12 @@ function Ready({ data }: { data: DashboardData }) {
               </h2>
               <ul className={styles.cardList}>
                 {forYou.map((alert) => (
-                  <Card key={alert.id} alert={alert} onTriage={applyDecision} />
+                  <Card
+                    key={alert.id}
+                    alert={alert}
+                    onTriage={applyDecision}
+                    onDelete={requestDelete}
+                  />
                 ))}
               </ul>
             </section>
@@ -343,7 +380,11 @@ function Ready({ data }: { data: DashboardData }) {
                             Ver en BDNS →
                           </a>
                         )}
-                        <Triage alert={alert} onTriage={applyDecision} />
+                        <Triage
+                          alert={alert}
+                          onTriage={applyDecision}
+                          onDelete={requestDelete}
+                        />
                       </div>
                     </li>
                   ))}
@@ -362,6 +403,7 @@ function Ready({ data }: { data: DashboardData }) {
                   key={alert.id}
                   alert={alert}
                   onTriage={applyDecision}
+                  onDelete={requestDelete}
                   muted={activeTab === "denegadas"}
                 />
               ))}
@@ -379,7 +421,71 @@ function Ready({ data }: { data: DashboardData }) {
           </button>
         </div>
       )}
+
+      {/* ── modal de confirmación de borrado ── */}
+      {pendingDelete && (
+        <ConfirmDeleteDialog
+          onCancel={() => setPendingDelete(null)}
+          onConfirm={() => {
+            const alert = pendingDelete;
+            setPendingDelete(null);
+            void removeAlert(alert);
+          }}
+        />
+      )}
     </>
+  );
+}
+
+function ConfirmDeleteDialog({
+  onCancel,
+  onConfirm,
+}: {
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <div
+      className={styles.modalOverlay}
+      onClick={onCancel}
+      role="presentation"
+    >
+      <div
+        className={styles.modal}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="confirm-delete-title"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <h3 className={styles.modalTitle} id="confirm-delete-title">
+          ¿Eliminar esta ayuda?
+        </h3>
+        <p className={styles.modalText}>
+          Esta ayuda se borrará de tu diario de decisiones. Esta acción
+          no se puede deshacer.
+        </p>
+        <p className={styles.modalConfirm}>
+          ¿Estás seguro de querer borrarla?
+        </p>
+        <div className={styles.modalActions}>
+          <button
+            type="button"
+            className={styles.modalBtnCancel}
+            onClick={onCancel}
+            autoFocus
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            className={styles.modalBtnDanger}
+            onClick={onConfirm}
+          >
+            Eliminar
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -404,10 +510,12 @@ const EMPTY_TEXTS: Record<TabKey, string> = {
 function Card({
   alert,
   onTriage,
+  onDelete,
   muted = false,
 }: {
   alert: AlertDTO;
   onTriage: (alert: AlertDTO, decision: AlertDecision) => void;
+  onDelete: (alert: AlertDTO) => void;
   muted?: boolean;
 }) {
   return (
@@ -446,7 +554,7 @@ function Card({
             Ver en BDNS →
           </a>
         )}
-        <Triage alert={alert} onTriage={onTriage} />
+        <Triage alert={alert} onTriage={onTriage} onDelete={onDelete} />
       </div>
     </li>
   );
@@ -460,27 +568,29 @@ function Regions({ regions }: { regions: string[] }) {
 function Triage({
   alert,
   onTriage,
+  onDelete,
 }: {
   alert: AlertDTO;
   onTriage: (alert: AlertDTO, decision: AlertDecision) => void;
+  onDelete: (alert: AlertDTO) => void;
 }) {
-  const decision = alert.decision;
-
   return (
     <div className={styles.triage} role="group" aria-label="Triaje de esta ayuda">
-      {DECISION_BTN.map((btn) => {
-        const active = decision === btn.key;
+      {triageActionsFor(alert.decision).map((action) => {
+        const className =
+          action.key === "eliminar" ? styles.eliminar : styles[action.key];
         return (
           <button
-            key={btn.key}
+            key={action.key}
             type="button"
-            className={`${styles.triageBtn} ${styles[btn.key]} ${
-              active ? styles.active : ""
-            }`}
-            aria-pressed={active}
-            onClick={() => onTriage(alert, btn.key)}
+            className={`${styles.triageBtn} ${className}`}
+            onClick={() =>
+              action.key === "eliminar"
+                ? onDelete(alert)
+                : onTriage(alert, action.key)
+            }
           >
-            {btn.label}
+            {action.label}
           </button>
         );
       })}
