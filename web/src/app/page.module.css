@@ -620,6 +620,29 @@
     align-items: flex-start;
     gap: 0.35rem;
   }
+
+  /* Acciones (Ver detalle / Ver en BDNS / Seguir) apiladas con aire, para
+     no pulsar sin querer. */
+  .resultMetaActions {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.85rem;
+    width: 100%;
+    margin-top: 0.9rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--hairline);
+  }
+
+  .resultLinkBtn,
+  .resultLink {
+    padding: 0.4rem 0;
+  }
+
+  .followBtn {
+    padding: 0.5rem 0.9rem;
+    align-self: stretch;
+    text-align: center;
+  }
 }
 
 @media (max-width: 480px) {

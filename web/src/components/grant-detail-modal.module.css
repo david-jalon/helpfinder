@@ -207,7 +207,7 @@
   color: var(--fg);
   background: color-mix(in srgb, var(--fg) 8%, transparent);
   border: 1px solid var(--hairline);
-  border-radius: 999px;
+  border-radius: 8px;
   padding: 0.25rem 0.7rem;
 }
 
@@ -231,4 +231,26 @@
 
 .link:hover {
   color: var(--sello);
+}
+
+/* ── móvil: título más comedido y más ancho útil ── */
+
+@media (max-width: 560px) {
+  .modal {
+    padding: 1.25rem 1.1rem;
+  }
+
+  .title {
+    font-size: 1.15rem;
+    line-height: 1.35;
+    padding-right: 1.1rem;
+  }
+
+  .plazoGrid {
+    gap: 1.25rem;
+  }
+
+  .description {
+    font-size: 0.9rem;
+  }
 }
