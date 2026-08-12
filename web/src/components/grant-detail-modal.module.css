@@ -192,7 +192,7 @@
 .datosValue {
   font-size: 1.05rem;
   font-weight: 700;
-  color: var(--fg);
+  color: var(--brillo);
 }
 
 .chips {

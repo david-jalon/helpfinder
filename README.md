@@ -9,7 +9,12 @@ panel de alertas diario ajustado a tu perfil.
 La web tiene dos caras. La primera es un buscador público, sin necesidad de
 cuenta, que consulta las convocatorias de la BDNS: escribes lo que necesitas
 ("digitalización", "autónomos", "I+D") y filtras por administración, comunidad
-o fechas. Cada resultado enlaza a la convocatoria original.
+o fechas. Cuando hay más de diez resultados puedes paginar con la barra
+inferior. Cada resultado enlaza a la convocatoria original y tiene un botón
+**«Ver detalle →»** que abre un modal con los datos clave de la convocatoria:
+plazo de solicitud, presupuesto total y tipo de beneficiario elegible. Si
+tienes sesión, también puedes pulsar **«Seguir»** en cualquier resultado para
+guardarlo en tu panel sin esperar al registro diario.
 
 La segunda es el panel personal. Te registras, describes tu perfil en español
 llano (persona, autónomo, sociedad...) y cada día el dashboard te muestra las
@@ -39,8 +44,10 @@ BDNS (API pública)
    cron diario (06:00 UTC, Vercel)
    ▼
 buscar nuevas → guardar IDs y elegibilidad en grants_seen (dato público, gratis)
-   │
-   usuario entra en su panel
+   │                                              │ «Seguir» desde la landing
+   ▼                                              ▼
+usuario entra en su panel                 guardar la ayuda en grants_seen
+   │                                        + user_alerts (decision='seguir')
    ▼
 1. matcher determinista: matched / maybe / excluded
 2. una llamada Gemini (su key) sobre matched y maybe → score + motivo
@@ -69,16 +76,47 @@ Todo en planes gratuitos, sin coste de mantenimiento.
 helpfinder/
 ├─ README.md
 └─ web/
-   ├─ src/lib/domain/     tipos de dominio (grants, profile, alert-filters)
-   ├─ src/lib/bdns/       cliente de la API BDNS, detalle, regiones, cache
-   ├─ src/lib/matching/   matcher determinista (matched/maybe/excluded)
-   ├─ src/lib/ai/         puntuación con Gemini (1 llamada batch por usuario)
-   ├─ src/lib/grants/     scan diario y feed de ayudas nuevas
-   ├─ src/lib/db.ts       conexión a Supabase y auto-creación de tablas
-   ├─ src/app/            páginas y rutas API (BFF)
-   ├─ supabase/schema.sql esquema de base de datos
-   └─ vercel.json         cron diario
+   ├─ src/lib/domain/      tipos de dominio (grants, profile, alert-filters,
+   │                       deadline, reltext-date)
+   ├─ src/lib/bdns/        cliente de la API BDNS, detalle, regiones, urls, cache
+   ├─ src/lib/matching/    matcher determinista (matched/maybe/excluded)
+   ├─ src/lib/ai/          puntuación con Gemini (1 llamada batch por usuario)
+   ├─ src/lib/grants/      scan diario, feed y sort de ayudas nuevas
+   ├─ src/lib/dashboard/   diario de decisiones (triage, follow, run-alerts)
+   ├─ src/lib/supabase/    client / server / actions de Supabase
+   ├─ src/lib/db.ts        conexión a Supabase y auto-creación de tablas
+   ├─ src/components/      componentes de interfaz (modal de detalle, header…)
+   ├─ src/app/             páginas y rutas API (BFF)
+   │  ├─ api/grants/       search (buscador paginado) y [id] (detalle)
+   │  ├─ api/dashboard/    diario del panel
+   │  ├─ api/alerts/       triaje y borrado de alertas
+   │  ├─ api/follow/       «Seguir» desde la landing
+   │  ├─ api/cron/daily/   registro diario
+   │  └─ api/catalogs/     catálogos (regiones)
+   ├─ src/test/            tests con Vitest
+   ├─ src/proxy.ts         proxy de sesión (protege rutas privadas)
+   ├─ supabase/schema.sql  esquema de base de datos
+   └─ vercel.json          cron diario
 ```
+
+## Configuración
+
+Copia `web/.env.example` a `web/.env.local` y rellena los valores. Públicas
+(Supabase) y solo-servidor por separado:
+
+- `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_ANON_KEY` — proyecto
+  Supabase (Auth + Postgres).
+- `CRON_SECRET` — protege `/api/cron/daily`; en Vercel debe coincidir con el
+  secret del Cron Job.
+- `BDNS_SEARCH_ENDPOINT` y `BDNS_BASE_URL` — API BDNS del Ministerio de
+  Hacienda (requeridas: sin ellas fallan el buscador y el detalle de
+  convocatoria, incluido el presupuesto).
+- Opcionales con valores por defecto: `GEMINI_MODEL`, `AI_MAX_GRANTS_PER_CALL`,
+  `CRON_SEARCH_DAYS`, `BDNS_TIMEOUT_MS`, `BDNS_RETRIES`,
+  `BDNS_SEARCH_CACHE_TTL_SECONDS`.
+
+La API key de Gemini **no** es una variable de entorno: cada usuario la
+configura en su perfil (Ajustes) y se guarda por usuario, solo para servidor.
 
 ## Aviso de datos
 

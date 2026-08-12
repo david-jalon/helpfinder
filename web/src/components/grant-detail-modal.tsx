@@ -70,6 +70,12 @@ export default function GrantDetailModal({
 
   const grant = state.kind === "ready" ? state.grant : initial;
 
+  const description = grant?.description?.trim();
+  const title = grant?.title?.trim();
+  const showDescription =
+    !!description &&
+    (!title || description.toLowerCase() !== title.toLowerCase());
+
   return (
     <div
       className={styles.overlay}
@@ -110,7 +116,7 @@ export default function GrantDetailModal({
 
             <KeyDataBlock grant={grant} />
 
-            {grant.description && (
+            {showDescription && (
               <p className={styles.description}>{grant.description}</p>
             )}
 
