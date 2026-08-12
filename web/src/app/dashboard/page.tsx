@@ -601,44 +601,105 @@ function Regions({ regions }: { regions: string[] }) {
   return <p className={styles.regions}>📍 {regions.join(" · ")}</p>;
 }
 
+type DeadlineFields = {
+  applicationStartDate: string | null;
+  applicationEndDate: string | null;
+  applicationStartText: string | null;
+  applicationEndText: string | null;
+  openEnded: boolean;
+};
+
 function Deadline({ alert }: { alert: AlertDTO }) {
-  const resolved = resolveEffectiveDeadline({
-    startDate: alert.applicationStartDate,
-    startText: alert.applicationStartText,
-    endDate: alert.applicationEndDate,
-    endText: alert.applicationEndText,
+  // El plazo de las tarjetas sale de `eligibility_json`, que el cron guarda
+  // una sola vez; a veces queda incompleto. Si faltan datos, se consulta la
+  // BDNS en vivo (mismo detalle que el modal) y se muestra con fallback.
+  const hasLocal = !!(
+    alert.applicationStartDate ||
+    alert.applicationEndDate ||
+    alert.applicationStartText ||
+    alert.applicationEndText ||
+    alert.openEnded
+  );
+
+  const [fresh, setFresh] = useState<DeadlineFields | null>(null);
+
+  useEffect(() => {
+    if (hasLocal) return;
+
+    let mounted = true;
+    fetch(`/api/grants/${alert.grantId}`, { cache: "no-store" })
+      .then((r) => r.json())
+      .then((json) => {
+        if (!mounted || !json?.ok) return;
+        const d = json.data;
+        if (!d) return;
+        setFresh({
+          applicationStartDate: d.applicationStartDate ?? null,
+          applicationEndDate: d.applicationEndDate ?? null,
+          applicationStartText: d.applicationStartText ?? null,
+          applicationEndText: d.applicationEndText ?? null,
+          openEnded: d.openEnded === true,
+        });
+      })
+      .catch(() => {});
+
+    return () => {
+      mounted = false;
+    };
+  }, [alert.grantId, hasLocal]);
+
+  // Si no hay datos locales y el detalle fresco aún no ha llegado, no se
+  // pinta nada para evitar un plazo incompleto o parpadeos.
+  if (!hasLocal && !fresh) return null;
+
+  const fields: DeadlineFields = fresh ?? {
+    applicationStartDate: alert.applicationStartDate,
+    applicationEndDate: alert.applicationEndDate,
+    applicationStartText: alert.applicationStartText,
+    applicationEndText: alert.applicationEndText,
     openEnded: alert.openEnded,
+  };
+
+  const resolved = resolveEffectiveDeadline({
+    startDate: fields.applicationStartDate,
+    startText: fields.applicationStartText,
+    endDate: fields.applicationEndDate,
+    endText: fields.applicationEndText,
+    openEnded: fields.openEnded,
     publicationDate: alert.publicationDate,
   });
 
   const originalText = [
-    alert.applicationStartText,
-    alert.applicationEndText,
+    fields.applicationStartText,
+    fields.applicationEndText,
   ]
     .filter(Boolean)
     .join(" / ");
 
-  if (resolved.byAnnouncement && !alert.openEnded) {
-    if (!originalText) return null;
-    return (
-      <p className={styles.deadline}>
-        <span className={`${styles.deadlineBadge} ${styles.deadline_indefinido}`}>
-          Plazo por anuncio
-        </span>
-      </p>
-    );
-  }
-
-  const state = deadlineState(resolved.end, alert.openEnded);
+  const state = deadlineState(resolved.end, fields.openEnded);
   const view = deadlineView(state);
+
+  // Nombre del plazo sin nada calculable → no hay nada que mostrar.
+  if (resolved.byAnnouncement && !fields.openEnded && !originalText) return null;
 
   const fmt = (d: Date | null) =>
     d
       ? `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`
       : null;
 
+  if (resolved.byAnnouncement && !fields.openEnded) {
+    if (!originalText) return null;
+    return (
+      <div className={styles.cardDeadline} title={originalText || undefined}>
+        <span className={`${styles.deadlineBadge} ${styles.deadline_indefinido}`}>
+          Plazo por anuncio
+        </span>
+      </div>
+    );
+  }
+
   let range: string;
-  if (alert.openEnded) {
+  if (fields.openEnded) {
     range = "Solicitud abierta";
   } else if (resolved.end) {
     range = `${fmt(resolved.start) || "?"} → ${fmt(resolved.end)}`;
@@ -647,13 +708,13 @@ function Deadline({ alert }: { alert: AlertDTO }) {
   }
 
   return (
-    <p className={styles.deadline} title={originalText || undefined}>
+    <div className={styles.cardDeadline} title={originalText || undefined}>
       <span className={`${styles.deadlineBadge} ${styles[`deadline_${view.status}`]}`}>
         {view.label || "Plazo"}
       </span>
       <span className={styles.deadlineRange}>{range}</span>
       {resolved.inferred && <span className={styles.deadlineHint}>· aprox.</span>}
-    </p>
+    </div>
   );
 }
 

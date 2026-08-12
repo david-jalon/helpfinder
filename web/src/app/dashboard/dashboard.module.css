@@ -271,7 +271,7 @@
   line-height: 1.4;
 }
 
-.deadline {
+.cardDeadline {
   display: flex;
   align-items: center;
   gap: 0.6rem;
