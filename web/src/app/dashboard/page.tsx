@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import AppHeader from "@/components/app-header";
 import Lightbulb from "@/components/lightbulb";
+import GrantDetailModal from "@/components/grant-detail-modal";
 import { logout } from "@/lib/supabase/actions";
 import {
   buildTabSummary,
@@ -11,6 +12,7 @@ import {
   type AlertDTO,
   type AlertDecision,
 } from "@/lib/dashboard/triage";
+import { deadlineState, deadlineView } from "@/lib/domain/deadline";
 import styles from "./dashboard.module.css";
 
 /**
@@ -161,6 +163,7 @@ function Ready({ data }: { data: DashboardData }) {
   const [overrides, setOverrides] = useState<Record<string, AlertDecision>>({});
   const [removedIds, setRemovedIds] = useState<Set<string>>(new Set());
   const [pendingDelete, setPendingDelete] = useState<AlertDTO | null>(null);
+  const [detailAlert, setDetailAlert] = useState<AlertDTO | null>(null);
   const [toast, setToast] = useState<{ alert: AlertDTO } | null>(null);
   const toastTimer = useRef<number | null>(null);
 
@@ -341,6 +344,7 @@ function Ready({ data }: { data: DashboardData }) {
                     alert={alert}
                     onTriage={applyDecision}
                     onDelete={requestDelete}
+                    onDetail={setDetailAlert}
                   />
                 ))}
               </ul>
@@ -404,6 +408,7 @@ function Ready({ data }: { data: DashboardData }) {
                   alert={alert}
                   onTriage={applyDecision}
                   onDelete={requestDelete}
+                  onDetail={setDetailAlert}
                   muted={activeTab === "denegadas"}
                 />
               ))}
@@ -431,6 +436,25 @@ function Ready({ data }: { data: DashboardData }) {
             setPendingDelete(null);
             void removeAlert(alert);
           }}
+        />
+      )}
+
+      {/* ── detalle de una ayuda (modal) ── */}
+      {detailAlert && (
+        <GrantDetailModal
+          grantId={detailAlert.grantId}
+          initial={{
+            id: detailAlert.grantId,
+            title: detailAlert.title,
+            organization: detailAlert.organization,
+            sourceUrl: detailAlert.sourceUrl,
+            applicationStartDate: detailAlert.applicationStartDate,
+            applicationEndDate: detailAlert.applicationEndDate,
+            applicationStartText: detailAlert.applicationStartText,
+            applicationEndText: detailAlert.applicationEndText,
+            openEnded: detailAlert.openEnded,
+          }}
+          onClose={() => setDetailAlert(null)}
         />
       )}
     </>
@@ -511,11 +535,13 @@ function Card({
   alert,
   onTriage,
   onDelete,
+  onDetail,
   muted = false,
 }: {
   alert: AlertDTO;
   onTriage: (alert: AlertDTO, decision: AlertDecision) => void;
   onDelete: (alert: AlertDTO) => void;
+  onDetail: (alert: AlertDTO) => void;
   muted?: boolean;
 }) {
   return (
@@ -539,21 +565,31 @@ function Card({
         <p className={styles.cardOrg}>{alert.organization}</p>
       )}
       <Regions regions={alert.impactRegions} />
+      <Deadline alert={alert} />
       {alert.reason && <p className={styles.cardReason}>{alert.reason}</p>}
       {!alert.reason && alert.matchReasons.length > 0 && (
         <p className={styles.cardReason}>{alert.matchReasons.join(" · ")}</p>
       )}
       <div className={styles.cardActions}>
-        {alert.sourceUrl && (
-          <a
-            className={styles.link}
-            href={alert.sourceUrl}
-            target="_blank"
-            rel="noopener noreferrer"
+        <div className={styles.cardLinks}>
+          <button
+            type="button"
+            className={styles.detailBtn}
+            onClick={() => onDetail(alert)}
           >
-            Ver en BDNS →
-          </a>
-        )}
+            Ver detalle →
+          </button>
+          {alert.sourceUrl && (
+            <a
+              className={styles.link}
+              href={alert.sourceUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Ver en BDNS →
+            </a>
+          )}
+        </div>
         <Triage alert={alert} onTriage={onTriage} onDelete={onDelete} />
       </div>
     </li>
@@ -563,6 +599,39 @@ function Card({
 function Regions({ regions }: { regions: string[] }) {
   if (regions.length === 0) return null;
   return <p className={styles.regions}>📍 {regions.join(" · ")}</p>;
+}
+
+function Deadline({ alert }: { alert: AlertDTO }) {
+  const start = alert.applicationStartDate;
+  const end = alert.applicationEndDate;
+  const startText = alert.applicationStartText;
+  const endText = alert.applicationEndText;
+  const hasAny = start || end || startText || endText || alert.openEnded;
+
+  if (!hasAny) return null;
+
+  const state = deadlineState(end, alert.openEnded);
+  const view = deadlineView(state);
+
+  let range: string;
+  if (alert.openEnded) {
+    range = "Solicitud abierta";
+  } else if (end) {
+    range = `${start || "?"} → ${end}`;
+  } else if (startText || endText) {
+    range = [startText, endText].filter(Boolean).join(" / ");
+  } else {
+    range = "Plazo a consultar";
+  }
+
+  return (
+    <p className={styles.deadline}>
+      <span className={`${styles.deadlineBadge} ${styles[`deadline_${view.status}`]}`}>
+        {view.label || "Plazo"}
+      </span>
+      <span className={styles.deadlineRange}>{range}</span>
+    </p>
+  );
 }
 
 function Triage({

@@ -101,6 +101,23 @@ export function grantItemFromSeen(row: SeenGrant): GrantItem {
       typeof eligibility.instrumentType === "string"
         ? eligibility.instrumentType
         : null,
+    applicationStartDate:
+      typeof eligibility.applicationStartDate === "string"
+        ? eligibility.applicationStartDate
+        : null,
+    applicationEndDate:
+      typeof eligibility.applicationEndDate === "string"
+        ? eligibility.applicationEndDate
+        : null,
+    applicationStartText:
+      typeof eligibility.applicationStartText === "string"
+        ? eligibility.applicationStartText
+        : null,
+    applicationEndText:
+      typeof eligibility.applicationEndText === "string"
+        ? eligibility.applicationEndText
+        : null,
+    openEnded: eligibility.openEnded === true,
   };
 }
 
@@ -144,6 +161,23 @@ export function buildAlertDTOs(
       rule: match.rule,
       decision: null,
       impactRegions: formatImpactRegions(row?.eligibilityJson?.impactRegions),
+      applicationStartDate:
+        typeof row?.eligibilityJson?.applicationStartDate === "string"
+          ? row.eligibilityJson.applicationStartDate
+          : null,
+      applicationEndDate:
+        typeof row?.eligibilityJson?.applicationEndDate === "string"
+          ? row.eligibilityJson.applicationEndDate
+          : null,
+      applicationStartText:
+        typeof row?.eligibilityJson?.applicationStartText === "string"
+          ? row.eligibilityJson.applicationStartText
+          : null,
+      applicationEndText:
+        typeof row?.eligibilityJson?.applicationEndText === "string"
+          ? row.eligibilityJson.applicationEndText
+          : null,
+      openEnded: row?.eligibilityJson?.openEnded === true,
     };
   };
 

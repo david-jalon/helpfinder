@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { searchGrants } from "@/lib/bdns/client";
+import { enrichGrantsWithEligibility } from "@/lib/bdns/detail";
 
 export const runtime = "nodejs";
 
@@ -62,10 +63,16 @@ export async function GET(request: NextRequest) {
       regionId,
     });
 
+    // Enriquece cada resultado con lo que BDNS solo da en el detalle
+    // (fechas del periodo de solicitud, elegibilidad...). Es una llamada
+    // por convocatoria, en paralelo, limitada a una página de resultados.
+    const enriched = { ...data, items: data.items.map((item) => ({ ...item })) };
+    await enrichGrantsWithEligibility(enriched.items);
+
     return NextResponse.json(
       {
         ok: true,
-        data,
+        data: enriched,
       },
       { status: 200 }
     );

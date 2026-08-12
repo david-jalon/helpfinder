@@ -1,6 +1,76 @@
 import type { GrantDetail, GrantItem } from "@/lib/domain/grants";
 import { buildInfosubvencionesConvocatoriaUrl, getBdnsApiBase } from "./urls";
 
+/**
+ * Convierte una fecha ISO (YYYY-MM-DD) que devuelve BDNS al formato
+ * DD/MM/YYYY que usa el resto de la app. Devuelve null si no es válida.
+ */
+export function toAppDate(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return null;
+  const [, year, month, day] = match;
+  return `${day}/${month}/${year}`;
+}
+
+/**
+ * Normaliza un `textInicio`/`textFin` de BDNS. Puede ser:
+ *  - una fecha `DD/MM/YYYY` → se devuelve como fecha.
+ *  - un texto referencial (ej. "DÍA SIGUIENTE DE SU PUBLICACIÓN") → se conserva como texto.
+ */
+export function parseTextAsDateOrText(value: unknown): {
+  date: string | null;
+  text: string | null;
+} {
+  if (typeof value !== "string") return { date: null, text: null };
+  const trimmed = value.trim();
+  if (!trimmed) return { date: null, text: null };
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(trimmed)) {
+    return { date: trimmed, text: null };
+  }
+  return { date: null, text: trimmed };
+}
+
+/**
+ * Resuelve inicio (o fin) del periodo de solicitud con esta prioridad:
+ *  1. `fechaInicioSolicitud`/`fechaFinSolicitud` (ISO YYYY-MM-DD) → fecha real.
+ *  2. `textInicio`/`textFin` si es `DD/MM/YYYY` → fecha real.
+ *  3. `textInicio`/`textFin` si es referencial → texto.
+ */
+export function resolveBound(
+  iso: unknown,
+  text: unknown
+): { date: string | null; text: string | null } {
+  if (typeof iso === "string") {
+    const date = toAppDate(iso);
+    if (date) return { date, text: null };
+  }
+  return parseTextAsDateOrText(text);
+}
+
+function extractApplicationDates(obj: Record<string, unknown>): {
+  applicationStartDate: string | null;
+  applicationEndDate: string | null;
+  applicationStartText: string | null;
+  applicationEndText: string | null;
+  openEnded: boolean;
+} {
+  const openEnded = obj.abierto === true;
+
+  const start = resolveBound(obj.fechaInicioSolicitud, obj.textInicio);
+  const end = openEnded
+    ? { date: null, text: null }
+    : resolveBound(obj.fechaFinSolicitud, obj.textFin);
+
+  return {
+    applicationStartDate: start.date,
+    applicationEndDate: end.date,
+    applicationStartText: start.text,
+    applicationEndText: end.text,
+    openEnded,
+  };
+}
+
 function rawToGrantDetail(raw: unknown, requestedNumConv: string): GrantDetail {
   const obj = (raw ?? {}) as Record<string, unknown>;
 
@@ -19,6 +89,7 @@ function rawToGrantDetail(raw: unknown, requestedNumConv: string): GrantDetail {
       typeof obj.fechaRecepcion === "string" ? obj.fechaRecepcion : null,
     description: typeof obj.descripcion === "string" ? obj.descripcion : null,
     sourceUrl,
+    ...extractApplicationDates(obj),
   };
 }
 
@@ -77,7 +148,16 @@ function extractStrings(arr: unknown): string[] {
 
 type EligibilityFields = Pick<
   GrantItem,
-  "beneficiaryTypes" | "sectors" | "impactRegions" | "purpose" | "instrumentType"
+  | "beneficiaryTypes"
+  | "sectors"
+  | "impactRegions"
+  | "purpose"
+  | "instrumentType"
+  | "applicationStartDate"
+  | "applicationEndDate"
+  | "applicationStartText"
+  | "applicationEndText"
+  | "openEnded"
 >;
 
 /**
@@ -117,6 +197,7 @@ export async function fetchGrantEligibility(
       impactRegions: extractStrings(json.regiones),
       purpose: typeof json.descripcionFinalidad === "string" ? json.descripcionFinalidad : null,
       instrumentType: instruments.length > 0 ? instruments.join(", ") : null,
+      ...extractApplicationDates(json),
     };
   } catch {
     return null;
@@ -144,6 +225,11 @@ export async function enrichGrantsWithEligibility(
         item.impactRegions = fields.impactRegions;
         item.purpose = fields.purpose;
         item.instrumentType = fields.instrumentType;
+        item.applicationStartDate = fields.applicationStartDate;
+        item.applicationEndDate = fields.applicationEndDate;
+        item.applicationStartText = fields.applicationStartText;
+        item.applicationEndText = fields.applicationEndText;
+        item.openEnded = fields.openEnded;
       }
     }
   }

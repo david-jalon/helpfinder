@@ -312,6 +312,59 @@
   color: var(--fg-muted);
 }
 
+/* ── plazo de solicitud (fechas de la BDNS) ── */
+
+.resultDeadline {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--fg-muted);
+  flex-wrap: wrap;
+}
+
+.deadlineRange {
+  font-weight: 600;
+  color: var(--fg);
+}
+
+.deadlineBadge {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.deadline_open {
+  color: var(--ok, #1a7f37);
+  border-color: var(--ok, #1a7f37);
+}
+
+.deadline_soon {
+  color: var(--warn, #b45309);
+  border-color: var(--warn, #b45309);
+}
+
+.deadline_closed {
+  color: var(--danger, #b91c1c);
+  border-color: var(--danger, #b91c1c);
+}
+
+.deadline_indefinido {
+  color: var(--sello);
+  border-color: var(--sello);
+}
+
+.deadline_none {
+  display: none;
+}
+
 .resultMeta {
   display: flex;
   align-items: center;
@@ -331,6 +384,21 @@
 }
 
 .resultLink:hover {
+  color: var(--sello);
+}
+
+.resultLinkBtn {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: var(--fg);
+  font-weight: 700;
+  cursor: pointer;
+  transition: color 0.15s;
+}
+
+.resultLinkBtn:hover {
   color: var(--sello);
 }
 

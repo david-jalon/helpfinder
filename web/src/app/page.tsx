@@ -2,7 +2,9 @@
 
 import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from "react";
 import AppHeader from "@/components/app-header";
+import GrantDetailModal from "@/components/grant-detail-modal";
 import type { GrantItem } from "@/lib/domain/grants";
+import { deadlineState, deadlineView } from "@/lib/domain/deadline";
 import { sortResults } from "@/lib/grants/sort";
 import styles from "./page.module.css";
 
@@ -37,6 +39,46 @@ type StampProps = {
   className?: string;
   id?: string;
 };
+
+/**
+ * Línea de plazo de solicitud de una ayuda en los resultados. Muestra el
+ * rango de solicitud (inicio → fin) y, si aplica, un estado/badge.
+ * Cuando no hay fecha concreta pero sí texto referencial (ej. "DÍA SIGUIENTE
+ * DE SU PUBLICACIÓN"), se muestra el texto tal cual.
+ */
+function Deadline({ grant }: { grant: GrantItem }) {
+  const start = grant.applicationStartDate;
+  const end = grant.applicationEndDate;
+  const startText = grant.applicationStartText;
+  const endText = grant.applicationEndText;
+  const hasAny =
+    start || end || startText || endText || grant.openEnded;
+
+  if (!hasAny) return null;
+
+  const state = deadlineState(end, grant.openEnded);
+  const view = deadlineView(state);
+
+  let range: string;
+  if (grant.openEnded) {
+    range = "Solicitud abierta";
+  } else if (end) {
+    range = `${start || "?"} → ${end}`;
+  } else if (startText || endText) {
+    range = [startText, endText].filter(Boolean).join(" / ");
+  } else {
+    range = "Plazo a consultar";
+  }
+
+  return (
+    <div className={styles.resultDeadline}>
+      <span className={`${styles.deadlineBadge} ${styles[`deadline_${view.status}`]}`}>
+        {view.label || "Plazo"}
+      </span>
+      <span className={styles.deadlineRange}>{range}</span>
+    </div>
+  );
+}
 
 function Stamp({ size = 88, label, center, centerSub, className, id }: StampProps) {
   const generatedId = useId();
@@ -124,6 +166,9 @@ export default function Home() {
   const [addedIds, setAddedIds] = useState<Set<string>>(new Set());
   const [toast, setToast] = useState<string | null>(null);
   const toastTimer = useRef<number | null>(null);
+
+  // ── detalle de una ayuda (modal) ──
+  const [detailGrant, setDetailGrant] = useState<GrantItem | null>(null);
 
   useEffect(() => {
     return () => {
@@ -553,11 +598,19 @@ export default function Home() {
                       )}
                     </div>
                   </div>
+                  <Deadline grant={grant} />
                   <div className={styles.resultMeta}>
                     {grant.publicationDate && (
                       <span>PUBLICADA · {grant.publicationDate}</span>
                     )}
                     <div className={styles.resultMetaActions}>
+                      <button
+                        type="button"
+                        className={styles.resultLinkBtn}
+                        onClick={() => setDetailGrant(grant)}
+                      >
+                        Ver detalle →
+                      </button>
                       {grant.sourceUrl && (
                         <a
                           className={styles.resultLink}
@@ -678,6 +731,15 @@ export default function Home() {
         <div className={styles.toast} role="status">
           {toast}
         </div>
+      )}
+
+      {/* ── detalle de una ayuda (modal) ── */}
+      {detailGrant && (
+        <GrantDetailModal
+          grantId={detailGrant.id}
+          initial={detailGrant}
+          onClose={() => setDetailGrant(null)}
+        />
       )}
     </>
   );

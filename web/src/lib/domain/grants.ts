@@ -11,6 +11,14 @@ export type GrantItem = {
   deadlineDate: string | null;
   amount: number | null;
   sourceUrl: string | null;
+  /** Fechas del periodo de solicitud (formato DD/MM/YYYY, null si no aplica). */
+  applicationStartDate?: string | null;
+  applicationEndDate?: string | null;
+  /** Texto referencial del plazo (ej. "DÍA SIGUIENTE DE SU PUBLICACIÓN"), cuando no hay fecha exacta. */
+  applicationStartText?: string | null;
+  applicationEndText?: string | null;
+  /** true = se puede solicitar indefinidamente (no hay plazo de cierre). */
+  openEnded?: boolean;
   /** Campos de elegibilidad (opcionales, se rellenan en el paso de enriquecimiento vía API BDNS). */
   beneficiaryTypes?: string[];
   sectors?: string[];
@@ -26,6 +34,13 @@ export type GrantDetail = {
   publicationDate: string | null;
   description: string | null;
   sourceUrl: string | null;
+  /** Fechas del periodo de solicitud (formato DD/MM/YYYY, null si no aplica). */
+  applicationStartDate?: string | null;
+  applicationEndDate?: string | null;
+  /** Texto referencial del plazo (ej. "DÍA SIGUIENTE DE SU PUBLICACIÓN"), cuando no hay fecha exacta. */
+  applicationStartText?: string | null;
+  applicationEndText?: string | null;
+  openEnded?: boolean;
 };
 
 export type GrantsSearchResult = {

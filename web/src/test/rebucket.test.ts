@@ -91,6 +91,11 @@ function makeDto(overrides: Partial<AlertDTO> = {}): AlertDTO {
     rule: null,
     decision: null,
     impactRegions: [],
+    applicationStartDate: null,
+    applicationEndDate: null,
+    applicationStartText: null,
+    applicationEndText: null,
+    openEnded: false,
     ...overrides,
   };
 }

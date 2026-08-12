@@ -64,6 +64,11 @@ async function upsertGrantsSeen(
     impactRegions?: string[];
     purpose?: string | null;
     instrumentType?: string | null;
+    applicationStartDate?: string | null;
+    applicationEndDate?: string | null;
+    applicationStartText?: string | null;
+    applicationEndText?: string | null;
+    openEnded?: boolean;
   }>
 ): Promise<void> {
   if (grants.length === 0) return;
@@ -81,6 +86,11 @@ async function upsertGrantsSeen(
       impactRegions: g.impactRegions ?? [],
       purpose: g.purpose ?? null,
       instrumentType: g.instrumentType ?? null,
+      applicationStartDate: g.applicationStartDate ?? null,
+      applicationEndDate: g.applicationEndDate ?? null,
+      applicationStartText: g.applicationStartText ?? null,
+      applicationEndText: g.applicationEndText ?? null,
+      openEnded: g.openEnded ?? false,
     },
     enriched_at: new Date().toISOString(),
   }));

@@ -31,6 +31,14 @@ export type AlertDTO = {
   decision: AlertDecision;
   /** Regiones de impacto limpias (sin prefijo BDNS), p.ej. "Madrid". */
   impactRegions: string[];
+  /** Fechas del periodo de solicitud (formato DD/MM/YYYY, null si no aplica). */
+  applicationStartDate: string | null;
+  applicationEndDate: string | null;
+  /** Texto referencial del plazo (ej. "DÍA SIGUIENTE DE SU PUBLICACIÓN"). */
+  applicationStartText: string | null;
+  applicationEndText: string | null;
+  /** true = se puede solicitar indefinidamente. */
+  openEnded: boolean;
 };
 
 /** Fila mínima de `user_alerts` que necesita el mapeador puro. */
@@ -138,6 +146,23 @@ export function persistedAlertDTO(
     rule: null,
     decision: isAlertDecision(row.decision) ? row.decision : null,
     impactRegions: formatImpactRegions(grant?.eligibilityJson?.impactRegions),
+    applicationStartDate:
+      typeof grant?.eligibilityJson?.applicationStartDate === "string"
+        ? grant.eligibilityJson.applicationStartDate
+        : null,
+    applicationEndDate:
+      typeof grant?.eligibilityJson?.applicationEndDate === "string"
+        ? grant.eligibilityJson.applicationEndDate
+        : null,
+    applicationStartText:
+      typeof grant?.eligibilityJson?.applicationStartText === "string"
+        ? grant.eligibilityJson.applicationStartText
+        : null,
+    applicationEndText:
+      typeof grant?.eligibilityJson?.applicationEndText === "string"
+        ? grant.eligibilityJson.applicationEndText
+        : null,
+    openEnded: grant?.eligibilityJson?.openEnded === true,
   };
 }
 
