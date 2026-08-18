@@ -424,7 +424,7 @@ export default function Home() {
             </h1>
             <p className={styles.heroSub}>
               Buscador gratuito de subvenciones y ayudas de la BDNS, la base
-              oficial de España.
+              oficial de España. Accede al panel superior para tener alertas personalizadas.
             </p>
           </div>
 
