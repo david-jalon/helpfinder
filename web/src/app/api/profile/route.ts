@@ -31,11 +31,18 @@ export async function GET() {
       return NextResponse.json({ ok: true, data: null });
     }
 
-    // Ocultar la key de Gemini en la respuesta al navegador
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    // Ocultar la key de Gemini en la respuesta al navegador, pero decir
+    // SI existe (booleano) para que Ajustes pueda ofrecer reemplazarla o
+    // borrarla sin conocer nunca el valor.
     const { geminiApiKey, ...safeProfile } = profile;
 
-    return NextResponse.json({ ok: true, data: safeProfile });
+    return NextResponse.json({
+      ok: true,
+      data: {
+        ...safeProfile,
+        hasGeminiApiKey: geminiApiKey.trim().length > 0,
+      },
+    });
   } catch (error) {
     return NextResponse.json(
       { ok: false, error: error instanceof Error ? error.message : "Error interno" },
