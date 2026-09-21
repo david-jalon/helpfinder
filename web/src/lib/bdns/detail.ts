@@ -172,7 +172,7 @@ function extractStrings(arr: unknown): string[] {
     .filter((v): v is string => v !== null);
 }
 
-type EligibilityFields = Pick<
+export type EligibilityFields = Pick<
   GrantItem,
   | "beneficiaryTypes"
   | "sectors"
@@ -185,6 +185,12 @@ type EligibilityFields = Pick<
   | "applicationEndText"
   | "openEnded"
 > & { amount?: number | null };
+
+/**
+ * Mínimo que necesita el enriquecimiento: un id y los campos de elegibilidad
+ * (opcionales). Tanto `GrantItem` como una fila de `grants_seen` encajan.
+ */
+export type EnrichableGrant = { id: string } & EligibilityFields;
 
 /**
  * Obtiene campos de elegibilidad de una convocatoria vía la API BDNS.
@@ -233,20 +239,27 @@ export async function fetchGrantEligibility(
 }
 
 /**
- * Enriquece una lista de GrantItem con datos de elegibilidad en paralelo.
+ * Enriquece una lista de ayudas con datos de elegibilidad en paralelo.
  * `concurrency` controla cuántas peticiones simultáneas se hacen a la API BDNS.
+ *
+ * Devuelve el conjunto de `id` que se enriquecieron con ÉXITO (la petición a
+ * BDNS respondió, aunque viniera sin datos). Así el cron puede distinguir
+ * "ya está enriquecida" de "falló y hay que reintentar". `fetchFields` es
+ * inyectable para poder testear sin red.
  */
-export async function enrichGrantsWithEligibility(
-  items: GrantItem[],
+export async function enrichGrantsWithEligibility<T extends EnrichableGrant>(
+  items: T[],
   concurrency = 5,
-): Promise<void> {
+  fetchFields: (id: string) => Promise<EligibilityFields | null> = fetchGrantEligibility,
+): Promise<{ succeeded: Set<string> }> {
   let cursor = 0;
+  const succeeded = new Set<string>();
 
   async function next(): Promise<void> {
     while (cursor < items.length) {
       const idx = cursor++;
       const item = items[idx];
-      const fields = await fetchGrantEligibility(item.id);
+      const fields = await fetchFields(item.id);
       if (fields) {
         item.beneficiaryTypes = fields.beneficiaryTypes;
         item.sectors = fields.sectors;
@@ -259,10 +272,13 @@ export async function enrichGrantsWithEligibility(
         item.applicationStartText = fields.applicationStartText;
         item.applicationEndText = fields.applicationEndText;
         item.openEnded = fields.openEnded;
+        succeeded.add(item.id);
       }
     }
   }
 
   const workers = Array.from({ length: Math.min(concurrency, items.length) }, () => next());
   await Promise.all(workers);
+
+  return { succeeded };
 }

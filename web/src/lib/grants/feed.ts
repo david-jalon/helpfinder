@@ -98,6 +98,27 @@ export async function countGrantsSeen(): Promise<number> {
 }
 
 /**
+ * Ayudas cuya elegibilidad quedó PENDIENTE: el enriquecimiento falló
+ * (timeout, red) y `enriched_at` se quedó a null. El cron las reintenta, de
+ * la más antigua a la más nueva, para que una caída puntual de BDNS no deje
+ * una ayuda sin región/beneficiario para siempre.
+ */
+export async function getGrantsNeedingEnrichment(
+  limit = 50
+): Promise<SeenGrant[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("grants_seen")
+    .select("*")
+    .is("enriched_at", null)
+    .order("first_seen_at", { ascending: true })
+    .limit(limit);
+
+  if (error) throw error;
+  return (data ?? []).map(rowToSeenGrant);
+}
+
+/**
  * Devuelve las ayudas NUEVAS desde la última visita del usuario, de la más
  * ANTIGUA a la más reciente.
  *

@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { searchGrants } from "@/lib/bdns/client";
 import { enrichGrantsWithEligibility } from "@/lib/bdns/detail";
+import { getGrantsNeedingEnrichment } from "@/lib/grants/feed";
 
 /**
  * Motor diario (cron).
@@ -29,6 +30,8 @@ type DailyScanResult = {
   truncated: boolean;
   newGrantsCount: number;
   enrichedCount: number;
+  /** Ayudas ya conocidas que se re-enriquecieron con éxito en esta pasada. */
+  retryEnrichedCount: number;
   newGrants: { id: string; title: string }[];
 };
 
@@ -40,6 +43,16 @@ function getDaysBack(): number {
 function getMaxPages(): number {
   const raw = Number(process.env.CRON_MAX_PAGES ?? String(DEFAULT_MAX_PAGES));
   return Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : DEFAULT_MAX_PAGES;
+}
+
+const DEFAULT_ENRICH_RETRY_LIMIT = 50;
+
+/** Cuántas ayudas sin elegibilidad se reintentan por ejecución del cron. */
+function getEnrichRetryLimit(): number {
+  const raw = Number(
+    process.env.CRON_ENRICH_RETRY_LIMIT ?? String(DEFAULT_ENRICH_RETRY_LIMIT)
+  );
+  return Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : DEFAULT_ENRICH_RETRY_LIMIT;
 }
 
 /* ------------------------------------------------------------------ */
@@ -132,11 +145,18 @@ async function upsertGrantsSeen(
     applicationStartText?: string | null;
     applicationEndText?: string | null;
     openEnded?: boolean;
-  }>
+  }>,
+  /**
+   * ids cuya elegibilidad se obtuvo con éxito. Solo esos reciben
+   * `enriched_at`; los demás quedan a null para reintentarse en el cron
+   * (una caída puntual de BDNS no deja la ayuda sin datos para siempre).
+   */
+  enrichedIds: Set<string> = new Set()
 ): Promise<void> {
   if (grants.length === 0) return;
 
   const supabase = await createClient();
+  const nowIso = new Date().toISOString();
 
   const rows = grants.map((g) => ({
     num_convocatoria: g.id,
@@ -157,7 +177,7 @@ async function upsertGrantsSeen(
       applicationEndText: g.applicationEndText ?? null,
       openEnded: g.openEnded ?? false,
     },
-    enriched_at: new Date().toISOString(),
+    enriched_at: enrichedIds.has(g.id) ? nowIso : null,
   }));
 
   const { error } = await supabase.from("grants_seen").upsert(rows, {
@@ -209,13 +229,21 @@ export async function dailyScan(): Promise<DailyScanResult> {
   const knownIds = await getKnownIds([...new Set(allIds)]);
   const newItems = allItems.filter((item) => !knownIds.has(item.id));
 
-  // 3) Enriquecer las nuevas con datos de elegibilidad (gratis, sin IA)
+  // 3) Enriquecer las nuevas con datos de elegibilidad (gratis, sin IA).
+  //    `succeeded` = ids que BDNS devolvió con éxito (aunque vinieran vacíos).
+  let newEnriched = new Set<string>();
   if (newItems.length > 0) {
-    await enrichGrantsWithEligibility(newItems);
+    const { succeeded } = await enrichGrantsWithEligibility(newItems);
+    newEnriched = succeeded;
   }
 
-  // 4) Guardar en grants_seen
-  await upsertGrantsSeen(newItems);
+  // 4) Guardar en grants_seen (las nuevas, aunque el enriquecimiento falle:
+  //    así quedan visibles y se reintentan).
+  await upsertGrantsSeen(newItems, newEnriched);
+
+  // 5) Reintentar ayudas YA conocidas que se quedaron sin elegibilidad
+  //    (`enriched_at` a null) por una caída puntual de BDNS.
+  const retried = await retryPendingEnrichment();
 
   return {
     totalFetched: allItems.length,
@@ -223,6 +251,36 @@ export async function dailyScan(): Promise<DailyScanResult> {
     truncated,
     newGrantsCount: newItems.length,
     enrichedCount: newItems.filter((i) => i.beneficiaryTypes && i.beneficiaryTypes.length > 0).length,
+    retryEnrichedCount: retried,
     newGrants: newItems.map((i) => ({ id: i.id, title: i.title })),
   };
+}
+
+/**
+ * Re-enriquece las ayudas conocidas pendientes de elegibilidad.
+ * Devuelve cuántas se enriquecieron con éxito en esta pasada.
+ */
+async function retryPendingEnrichment(): Promise<number> {
+  const pending = await getGrantsNeedingEnrichment(getEnrichRetryLimit());
+  if (pending.length === 0) return 0;
+
+  // Objeto enriquecible con los datos base de la fila (no se pierde nada:
+  // title/organization/sourceUrl se reescriben con el mismo valor).
+  const targets = pending.map((row) => ({
+    id: row.numConvocatoria,
+    title: row.title,
+    organization: row.organization,
+    sourceUrl: row.sourceUrl,
+    publicationDate: row.publicationDate,
+  }));
+
+  const { succeeded } = await enrichGrantsWithEligibility(targets);
+  if (succeeded.size === 0) return 0;
+
+  await upsertGrantsSeen(
+    targets.filter((t) => succeeded.has(t.id)),
+    succeeded
+  );
+
+  return succeeded.size;
 }
