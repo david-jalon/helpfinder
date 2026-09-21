@@ -98,28 +98,30 @@ export async function countGrantsSeen(): Promise<number> {
 }
 
 /**
- * Devuelve las ayudas NUEVAS desde la última visita del usuario.
- * - `sinceIso` null (primera visita): las más recientes de grants_seen.
- * - `sinceIso` con fecha: solo las detectadas DESPUÉS de esa fecha
- *   (la "marca de agua" la escribe el dashboard en `profiles.last_seen_at`).
+ * Devuelve las ayudas NUEVAS desde la última visita del usuario, de la más
+ * ANTIGUA a la más reciente.
+ *
+ * El orden ascendente es clave: al abrir el panel se procesan desde la marca
+ * de agua hacia delante. Si hay más nuevas que `limit`, se procesan primero
+ * las más antiguas y la marca de agua avanza solo hasta lo realmente
+ * procesado, de modo que las siguientes se recogen en la próxima pasada.
+ * (Antes se tomaban las `limit` más recientes y las anteriores se perdían.)
+ *
+ * `sinceIso` es la marca de agua (`profiles.last_seen_at`) y NO puede ser
+ * null: para la PRIMERA visita usa `getRecentGrants` (las más recientes).
  */
 export async function getGrantsSeenSince(
-  sinceIso: string | null,
+  sinceIso: string,
   limit = 50
 ): Promise<SeenGrant[]> {
   const supabase = await createClient();
 
-  let query = supabase
+  const { data, error } = await supabase
     .from("grants_seen")
     .select("*")
-    .order("first_seen_at", { ascending: false })
+    .gt("first_seen_at", sinceIso)
+    .order("first_seen_at", { ascending: true })
     .limit(limit);
-
-  if (sinceIso) {
-    query = query.gt("first_seen_at", sinceIso);
-  }
-
-  const { data, error } = await query;
 
   if (error) throw error;
   return (data ?? []).map(rowToSeenGrant);
