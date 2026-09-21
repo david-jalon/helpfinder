@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState, type FormEvent } from "react";
 import AppHeader from "@/components/app-header";
 import type { ProfileType, Colectivo, Region } from "@/lib/domain/profile";
+import { resolveGeminiKeyPayload } from "@/lib/domain/profile-key";
 import { logout } from "@/lib/supabase/actions";
 import styles from "./settings.module.css";
 
@@ -142,11 +143,7 @@ export default function SettingsPage() {
 
       // La key solo se envía si se escribe una nueva o si se pide borrarla.
       // Si el campo se deja vacío, NO se manda: así no se borra la guardada.
-      if (clearKey) {
-        payload.geminiApiKey = "";
-      } else if (geminiApiKey.trim()) {
-        payload.geminiApiKey = geminiApiKey.trim();
-      }
+      Object.assign(payload, resolveGeminiKeyPayload(geminiApiKey, clearKey));
 
       const res = await fetch("/api/profile", {
         method: "PUT",
