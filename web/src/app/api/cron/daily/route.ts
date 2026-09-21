@@ -42,6 +42,8 @@ export async function GET(request: NextRequest) {
       JSON.stringify({
         event: "cron_daily_completed",
         totalFetched: result.totalFetched,
+        pagesFetched: result.pagesFetched,
+        truncated: result.truncated,
         newGrantsCount: result.newGrantsCount,
         enrichedCount: result.enrichedCount,
       })
