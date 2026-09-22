@@ -2,6 +2,14 @@ import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/supabase/server";
 import { getProfile, upsertProfile } from "@/lib/db";
 import type { ProfileInput } from "@/lib/domain/profile";
+import {
+  LIMITS,
+  isProfileType,
+  isValidEmail,
+  isValidGeminiKey,
+  sanitizeColectivos,
+  sanitizeRegiones,
+} from "@/lib/domain/profile-input";
 
 /**
  * API Profile
@@ -31,11 +39,18 @@ export async function GET() {
       return NextResponse.json({ ok: true, data: null });
     }
 
-    // Ocultar la key de Gemini en la respuesta al navegador
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    // Ocultar la key de Gemini en la respuesta al navegador, pero decir
+    // SI existe (booleano) para que Ajustes pueda ofrecer reemplazarla o
+    // borrarla sin conocer nunca el valor.
     const { geminiApiKey, ...safeProfile } = profile;
 
-    return NextResponse.json({ ok: true, data: safeProfile });
+    return NextResponse.json({
+      ok: true,
+      data: {
+        ...safeProfile,
+        hasGeminiApiKey: geminiApiKey.trim().length > 0,
+      },
+    });
   } catch (error) {
     return NextResponse.json(
       { ok: false, error: error instanceof Error ? error.message : "Error interno" },
@@ -59,9 +74,8 @@ export async function PUT(request: Request) {
     // Validación de entrada
     const allowedFields: Record<string, unknown> = {};
 
-    if (typeof body.profileType === "string") {
-      const validTypes = ["persona", "autonomo", "sociedad", "asociacion", "fundacion", "otros"];
-      if (!validTypes.includes(body.profileType)) {
+    if (body.profileType !== undefined) {
+      if (!isProfileType(body.profileType)) {
         return NextResponse.json(
           { ok: false, error: "Tipo de perfil no válido" },
           { status: 400 }
@@ -70,28 +84,72 @@ export async function PUT(request: Request) {
       allowedFields.profileType = body.profileType;
     }
 
-    if (Array.isArray(body.colectivos)) {
-      allowedFields.colectivos = body.colectivos;
+    if (body.colectivos !== undefined) {
+      if (!Array.isArray(body.colectivos)) {
+        return NextResponse.json(
+          { ok: false, error: "Colectivos inválidos" },
+          { status: 400 }
+        );
+      }
+      // Se filtran los valores desconocidos y los duplicados.
+      allowedFields.colectivos = sanitizeColectivos(body.colectivos);
     }
 
-    if (Array.isArray(body.regiones)) {
-      allowedFields.regiones = body.regiones;
+    if (body.regiones !== undefined) {
+      if (!Array.isArray(body.regiones)) {
+        return NextResponse.json(
+          { ok: false, error: "Regiones inválidas" },
+          { status: 400 }
+        );
+      }
+      allowedFields.regiones = sanitizeRegiones(body.regiones);
     }
 
     if (typeof body.keywords === "string") {
-      allowedFields.keywords = body.keywords.trim();
+      const keywords = body.keywords.trim();
+      if (keywords.length > LIMITS.keywords) {
+        return NextResponse.json(
+          { ok: false, error: `Las palabras clave no pueden superar ${LIMITS.keywords} caracteres` },
+          { status: 400 }
+        );
+      }
+      allowedFields.keywords = keywords;
     }
 
     if (typeof body.contextText === "string") {
-      allowedFields.contextText = body.contextText.trim();
+      const contextText = body.contextText.trim();
+      if (contextText.length > LIMITS.contextText) {
+        return NextResponse.json(
+          { ok: false, error: `La descripción no puede superar ${LIMITS.contextText} caracteres` },
+          { status: 400 }
+        );
+      }
+      allowedFields.contextText = contextText;
     }
 
     if (typeof body.geminiApiKey === "string") {
-      allowedFields.geminiApiKey = body.geminiApiKey.trim();
+      const geminiApiKey = body.geminiApiKey.trim();
+      if (!isValidGeminiKey(geminiApiKey)) {
+        return NextResponse.json(
+          { ok: false, error: "La API key de Gemini no tiene el formato esperado" },
+          { status: 400 }
+        );
+      }
+      allowedFields.geminiApiKey = geminiApiKey;
     }
 
     if (typeof body.notificationEmail === "string") {
-      allowedFields.notificationEmail = body.notificationEmail.trim();
+      const notificationEmail = body.notificationEmail.trim();
+      if (
+        !isValidEmail(notificationEmail) ||
+        notificationEmail.length > LIMITS.notificationEmail
+      ) {
+        return NextResponse.json(
+          { ok: false, error: "El correo electrónico no es válido" },
+          { status: 400 }
+        );
+      }
+      allowedFields.notificationEmail = notificationEmail;
     }
 
     if (typeof body.emailDigestEnabled === "boolean") {

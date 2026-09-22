@@ -1,4 +1,5 @@
 import type { GrantDetail, GrantItem } from "@/lib/domain/grants";
+import { createTtlCache } from "@/lib/domain/ttl-cache";
 import { buildInfosubvencionesConvocatoriaUrl, getBdnsApiBase } from "./urls";
 
 /**
@@ -172,7 +173,7 @@ function extractStrings(arr: unknown): string[] {
     .filter((v): v is string => v !== null);
 }
 
-type EligibilityFields = Pick<
+export type EligibilityFields = Pick<
   GrantItem,
   | "beneficiaryTypes"
   | "sectors"
@@ -187,13 +188,44 @@ type EligibilityFields = Pick<
 > & { amount?: number | null };
 
 /**
+ * Mínimo que necesita el enriquecimiento: un id y los campos de elegibilidad
+ * (opcionales). Tanto `GrantItem` como una fila de `grants_seen` encajan.
+ */
+export type EnrichableGrant = { id: string } & EligibilityFields;
+
+/**
  * Obtiene campos de elegibilidad de una convocatoria vía la API BDNS.
  * Devuelve `null` si la petición falla (degradación parcial).
  */
+
+const DEFAULT_DETAIL_CACHE_TTL_SECONDS = 3600;
+
+function getDetailCacheTtlMs(): number {
+  const raw = Number(
+    process.env.BDNS_DETAIL_CACHE_TTL_SECONDS ?? String(DEFAULT_DETAIL_CACHE_TTL_SECONDS)
+  );
+  if (!Number.isFinite(raw) || raw < 0) return DEFAULT_DETAIL_CACHE_TTL_SECONDS * 1000;
+  return Math.min(raw, 86400) * 1000;
+}
+
+/**
+ * Caché de elegibilidad por convocatoria. La elegibilidad cambia poco, así
+ * que cachearla evita repetir la misma llamada de detalle en cada búsqueda,
+ * paginación o tarjeta del dashboard. Solo se guardan los aciertos: un fallo
+ * se reintenta la próxima vez.
+ */
+const eligibilityCache = createTtlCache<EligibilityFields>({
+  maxEntries: 1000,
+  ttlMs: getDetailCacheTtlMs(),
+});
+
 export async function fetchGrantEligibility(
   numConv: string,
   timeoutMs = 8000,
 ): Promise<EligibilityFields | null> {
+  const cached = eligibilityCache.get(numConv);
+  if (cached) return cached;
+
   const url = new URL(`${getBdnsApiBase()}/convocatorias`);
   url.searchParams.set("numConv", numConv);
   url.searchParams.set("vpd", "GE");
@@ -218,7 +250,7 @@ export async function fetchGrantEligibility(
     const instruments = extractStrings(json.instrumentos);
     const amount = parseAmount(json.presupuestoTotal);
 
-    return {
+    const fields: EligibilityFields = {
       beneficiaryTypes: extractStrings(json.tiposBeneficiarios),
       sectors: extractStrings(json.sectores),
       impactRegions: extractStrings(json.regiones),
@@ -227,26 +259,36 @@ export async function fetchGrantEligibility(
       ...(amount !== null && { amount }),
       ...extractApplicationDates(json),
     };
+
+    eligibilityCache.set(numConv, fields);
+    return fields;
   } catch {
     return null;
   }
 }
 
 /**
- * Enriquece una lista de GrantItem con datos de elegibilidad en paralelo.
+ * Enriquece una lista de ayudas con datos de elegibilidad en paralelo.
  * `concurrency` controla cuántas peticiones simultáneas se hacen a la API BDNS.
+ *
+ * Devuelve el conjunto de `id` que se enriquecieron con ÉXITO (la petición a
+ * BDNS respondió, aunque viniera sin datos). Así el cron puede distinguir
+ * "ya está enriquecida" de "falló y hay que reintentar". `fetchFields` es
+ * inyectable para poder testear sin red.
  */
-export async function enrichGrantsWithEligibility(
-  items: GrantItem[],
+export async function enrichGrantsWithEligibility<T extends EnrichableGrant>(
+  items: T[],
   concurrency = 5,
-): Promise<void> {
+  fetchFields: (id: string) => Promise<EligibilityFields | null> = fetchGrantEligibility,
+): Promise<{ succeeded: Set<string> }> {
   let cursor = 0;
+  const succeeded = new Set<string>();
 
   async function next(): Promise<void> {
     while (cursor < items.length) {
       const idx = cursor++;
       const item = items[idx];
-      const fields = await fetchGrantEligibility(item.id);
+      const fields = await fetchFields(item.id);
       if (fields) {
         item.beneficiaryTypes = fields.beneficiaryTypes;
         item.sectors = fields.sectors;
@@ -259,10 +301,13 @@ export async function enrichGrantsWithEligibility(
         item.applicationStartText = fields.applicationStartText;
         item.applicationEndText = fields.applicationEndText;
         item.openEnded = fields.openEnded;
+        succeeded.add(item.id);
       }
     }
   }
 
   const workers = Array.from({ length: Math.min(concurrency, items.length) }, () => next());
   await Promise.all(workers);
+
+  return { succeeded };
 }

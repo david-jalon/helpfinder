@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState, type FormEvent } from "react";
 import AppHeader from "@/components/app-header";
 import type { ProfileType, Colectivo, Region } from "@/lib/domain/profile";
+import { resolveGeminiKeyPayload } from "@/lib/domain/profile-key";
 import { logout } from "@/lib/supabase/actions";
 import styles from "./settings.module.css";
 
@@ -61,6 +62,8 @@ type ProfileData = {
   regiones: Region[];
   keywords: string;
   contextText: string;
+  /** true si el usuario ya tiene una key de Gemini guardada (nunca su valor). */
+  hasGeminiApiKey?: boolean;
 };
 
 export default function SettingsPage() {
@@ -73,6 +76,12 @@ export default function SettingsPage() {
   const [regiones, setRegiones] = useState<Region[]>([]);
   const [keywords, setKeywords] = useState("");
   const [contextText, setContextText] = useState("");
+
+  // La key de Gemini nunca llega al navegador: solo se escribe una nueva o se
+  // pide borrarla. `hasSavedKey` dice si ya hay una guardada en el servidor.
+  const [geminiApiKey, setGeminiApiKey] = useState("");
+  const [hasSavedKey, setHasSavedKey] = useState(false);
+  const [clearKey, setClearKey] = useState(false);
 
   // Cargar perfil actual
   useEffect(() => {
@@ -94,6 +103,7 @@ export default function SettingsPage() {
           setRegiones(json.data.regiones ?? []);
           setKeywords(json.data.keywords ?? "");
           setContextText(json.data.contextText ?? "");
+          setHasSavedKey(Boolean(json.data.hasGeminiApiKey));
         }
       } catch {
         setMessage({ type: "error", text: "No se pudo cargar el perfil." });
@@ -123,16 +133,22 @@ export default function SettingsPage() {
     setMessage(null);
 
     try {
+      const payload: Record<string, unknown> = {
+        profileType,
+        colectivos: profileType === "persona" ? colectivos : [],
+        regiones,
+        keywords: keywords.trim(),
+        contextText: contextText.trim(),
+      };
+
+      // La key solo se envía si se escribe una nueva o si se pide borrarla.
+      // Si el campo se deja vacío, NO se manda: así no se borra la guardada.
+      Object.assign(payload, resolveGeminiKeyPayload(geminiApiKey, clearKey));
+
       const res = await fetch("/api/profile", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          profileType,
-          colectivos: profileType === "persona" ? colectivos : [],
-          regiones,
-          keywords: keywords.trim(),
-          contextText: contextText.trim(),
-        }),
+        body: JSON.stringify(payload),
       });
 
       const json = (await res.json()) as { ok: boolean; error?: string };
@@ -140,6 +156,12 @@ export default function SettingsPage() {
       if (!res.ok || !json.ok) {
         throw new Error(json.error ?? "No se pudo guardar");
       }
+
+      // Reflejar en pantalla el nuevo estado de la key y limpiar el campo.
+      if (clearKey) setHasSavedKey(false);
+      else if (geminiApiKey.trim()) setHasSavedKey(true);
+      setGeminiApiKey("");
+      setClearKey(false);
 
       setMessage({ type: "success", text: "Perfil guardado correctamente." });
     } catch (err) {
@@ -308,9 +330,20 @@ export default function SettingsPage() {
                 id="gemini-key"
                 className={styles.input}
                 type="password"
-                placeholder="Para cambiarla, introduce la nueva"
+                autoComplete="off"
+                placeholder={
+                  hasSavedKey
+                    ? "Escribe una nueva para reemplazarla"
+                    : "Pega aquí tu API key de Gemini"
+                }
+                value={geminiApiKey}
+                disabled={clearKey}
+                onChange={(e) => setGeminiApiKey(e.target.value)}
               />
               <p className={styles.hint}>
+                {hasSavedKey
+                  ? "Tienes una key guardada. Si dejas el campo vacío, se conserva."
+                  : "Todavía no has guardado ninguna key."}{" "}
                 Gratuita en{" "}
                 <a
                   href="https://aistudio.google.com/apikey"
@@ -321,6 +354,22 @@ export default function SettingsPage() {
                 </a>
                 . Se usa solo en servidor, nunca se comparte.
               </p>
+
+              {hasSavedKey && (
+                <label className={styles.checkItem}>
+                  <input
+                    type="checkbox"
+                    className={styles.checkInput}
+                    checked={clearKey}
+                    onChange={(e) => {
+                      setClearKey(e.target.checked);
+                      if (e.target.checked) setGeminiApiKey("");
+                    }}
+                  />
+                  Borrar la key guardada
+                </label>
+              )}
+
               <Link className={styles.guideLink} href="/guia">
                 ¿Cómo obtengo mi key? Ver la guía
               </Link>

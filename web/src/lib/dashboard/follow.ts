@@ -1,3 +1,5 @@
+import { buildInfosubvencionesConvocatoriaUrl } from "@/lib/bdns/urls";
+
 /**
  * Seguir una ayuda desde la landing
  *
@@ -46,4 +48,65 @@ export function validateFollowGrant(raw: unknown): FollowGrantValidation {
       : null;
 
   return { ok: true, grant: { id, title, organization, sourceUrl } };
+}
+
+/** Datos autoritativos de BDNS (título/organismo), si se pudieron obtener. */
+export type FollowGrantAuthoritative = {
+  title?: string | null;
+  organization?: string | null;
+};
+
+/**
+ * Combina lo que manda el cliente con el detalle AUTORITATIVO de BDNS.
+ *
+ * - La `sourceUrl` se SIEMPRE regenera desde el id: nunca se guarda una URL
+ *   del cliente (evita enlaces maliciosos en la caché compartida).
+ * - Título y organismo se prefieren los de BDNS; si no llegaron, los del
+ *   cliente (el id ya se validó como numérico).
+ */
+export function resolveFollowGrant(
+  validated: FollowGrantInput,
+  authoritative: FollowGrantAuthoritative | null
+): FollowGrantInput {
+  return {
+    id: validated.id,
+    title: authoritative?.title?.trim() || validated.title,
+    organization: authoritative?.organization?.trim() || validated.organization,
+    sourceUrl: buildInfosubvencionesConvocatoriaUrl(validated.id),
+  };
+}
+
+/** Datos ya guardados en `grants_seen` para una convocatoria (o null). */
+export type SeenGrantSnapshot = {
+  title: string | null;
+  organization: string | null;
+  source_url: string | null;
+};
+
+/** Fila que se escribe en `grants_seen` al «Seguir». */
+export type FollowGrantWrite = {
+  num_convocatoria: string;
+  title: string;
+  organization: string | null;
+  source_url: string | null;
+};
+
+/**
+ * Combina lo que llega con lo que YA hay en `grants_seen`, sin pisar datos
+ * buenos con vacíos: si el nuevo valor viene vacío/null, se conserva el
+ * existente. Así un «Seguir» desde la landing no borra el organismo o el
+ * enlace que ya había guardado el cron.
+ */
+export function mergeFollowGrantWrite(
+  incoming: FollowGrantInput,
+  existing: SeenGrantSnapshot | null
+): FollowGrantWrite {
+  return {
+    num_convocatoria: incoming.id,
+    title: incoming.title.trim() || existing?.title?.trim() || incoming.id,
+    organization:
+      incoming.organization?.trim() || existing?.organization?.trim() || null,
+    source_url:
+      incoming.sourceUrl?.trim() || existing?.source_url?.trim() || null,
+  };
 }

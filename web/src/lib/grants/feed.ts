@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { chunkArray } from "@/lib/domain/chunk";
 
 /**
  * Feed de ayudas (BDNS).
@@ -70,18 +71,29 @@ export async function getGrantByNumConv(
  * Devuelve varias ayudas por sus num_convocatoria.
  * Se usa para completar título/organización/enlace de las alertas
  * persistidas en `user_alerts` al recargar el dashboard.
+ *
+ * Los ids se piden en trozos de 100: un `.in()` con cientos de ids podría
+ * superar el tamaño máximo de URL de Supabase/PostgREST.
  */
 export async function getGrantsSeenByIds(ids: string[]): Promise<SeenGrant[]> {
   if (ids.length === 0) return [];
 
   const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("grants_seen")
-    .select("*")
-    .in("num_convocatoria", ids);
+  const chunks = chunkArray([...new Set(ids)], 100);
 
-  if (error) throw error;
-  return (data ?? []).map(rowToSeenGrant);
+  const results = await Promise.all(
+    chunks.map(async (chunk) => {
+      const { data, error } = await supabase
+        .from("grants_seen")
+        .select("*")
+        .in("num_convocatoria", chunk);
+
+      if (error) throw error;
+      return data ?? [];
+    })
+  );
+
+  return results.flat().map(rowToSeenGrant);
 }
 
 /**
@@ -98,28 +110,51 @@ export async function countGrantsSeen(): Promise<number> {
 }
 
 /**
- * Devuelve las ayudas NUEVAS desde la última visita del usuario.
- * - `sinceIso` null (primera visita): las más recientes de grants_seen.
- * - `sinceIso` con fecha: solo las detectadas DESPUÉS de esa fecha
- *   (la "marca de agua" la escribe el dashboard en `profiles.last_seen_at`).
+ * Ayudas cuya elegibilidad quedó PENDIENTE: el enriquecimiento falló
+ * (timeout, red) y `enriched_at` se quedó a null. El cron las reintenta, de
+ * la más antigua a la más nueva, para que una caída puntual de BDNS no deje
+ * una ayuda sin región/beneficiario para siempre.
+ */
+export async function getGrantsNeedingEnrichment(
+  limit = 50
+): Promise<SeenGrant[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("grants_seen")
+    .select("*")
+    .is("enriched_at", null)
+    .order("first_seen_at", { ascending: true })
+    .limit(limit);
+
+  if (error) throw error;
+  return (data ?? []).map(rowToSeenGrant);
+}
+
+/**
+ * Devuelve las ayudas NUEVAS desde la última visita del usuario, de la más
+ * ANTIGUA a la más reciente.
+ *
+ * El orden ascendente es clave: al abrir el panel se procesan desde la marca
+ * de agua hacia delante. Si hay más nuevas que `limit`, se procesan primero
+ * las más antiguas y la marca de agua avanza solo hasta lo realmente
+ * procesado, de modo que las siguientes se recogen en la próxima pasada.
+ * (Antes se tomaban las `limit` más recientes y las anteriores se perdían.)
+ *
+ * `sinceIso` es la marca de agua (`profiles.last_seen_at`) y NO puede ser
+ * null: para la PRIMERA visita usa `getRecentGrants` (las más recientes).
  */
 export async function getGrantsSeenSince(
-  sinceIso: string | null,
+  sinceIso: string,
   limit = 50
 ): Promise<SeenGrant[]> {
   const supabase = await createClient();
 
-  let query = supabase
+  const { data, error } = await supabase
     .from("grants_seen")
     .select("*")
-    .order("first_seen_at", { ascending: false })
+    .gt("first_seen_at", sinceIso)
+    .order("first_seen_at", { ascending: true })
     .limit(limit);
-
-  if (sinceIso) {
-    query = query.gt("first_seen_at", sinceIso);
-  }
-
-  const { data, error } = await query;
 
   if (error) throw error;
   return (data ?? []).map(rowToSeenGrant);

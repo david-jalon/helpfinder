@@ -5,12 +5,13 @@ import { Suspense, useState, type FormEvent } from "react";
 import Link from "next/link";
 import AppHeader from "@/components/app-header";
 import { createClient } from "@/lib/supabase/client";
+import { sanitizeNextPath } from "@/lib/domain/redirect";
 import styles from "../auth.module.css";
 
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const next = searchParams.get("next") ?? "/dashboard";
+  const next = sanitizeNextPath(searchParams.get("next"));
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");

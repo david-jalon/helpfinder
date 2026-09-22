@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/supabase/server";
 import { followGrantForUser } from "@/lib/db";
-import { validateFollowGrant } from "@/lib/dashboard/follow";
+import { fetchGrantDetailByNumConv } from "@/lib/bdns/detail";
+import { resolveFollowGrant, validateFollowGrant } from "@/lib/dashboard/follow";
 
 /**
  * API Follow — seguir desde la landing (Fase 14)
@@ -46,9 +47,21 @@ export async function POST(request: Request) {
       );
     }
 
-    await followGrantForUser(user.id, parsed.grant);
+    // Validar el id contra BDNS y quedarnos con SUS datos. Si BDNS no
+    // responde, seguimos con los del cliente, pero la URL se regenera
+    // siempre desde el id (nunca se guarda una URL arbitraria).
+    let authoritative = null;
+    try {
+      const detail = await fetchGrantDetailByNumConv(parsed.grant.id);
+      if (detail.ok) authoritative = detail.data;
+    } catch {
+      // Sin detalle: se usan los datos del cliente.
+    }
 
-    return NextResponse.json({ ok: true, grantId: parsed.grant.id });
+    const grant = resolveFollowGrant(parsed.grant, authoritative);
+    await followGrantForUser(user.id, grant);
+
+    return NextResponse.json({ ok: true, grantId: grant.id });
   } catch (error) {
     return NextResponse.json(
       { ok: false, error: error instanceof Error ? error.message : "Error interno" },
