@@ -116,3 +116,14 @@ create policy "alertas: actualización del dueño"
 create policy "alertas: borrado del dueño"
   on public.user_alerts for delete
   using (auth.uid() = user_id);
+
+-- ────────────────────────────────────────────────────────────
+-- 4) Índices (rendimiento)
+--    El diario y el cron ordenan/filtran por estas columnas; sin índice,
+--    las consultas se vuelven lentas a medida que crecen las tablas.
+-- ────────────────────────────────────────────────────────────
+create index if not exists idx_grants_seen_first_seen_at
+  on public.grants_seen (first_seen_at desc);
+
+create index if not exists idx_user_alerts_user_created
+  on public.user_alerts (user_id, created_at desc);

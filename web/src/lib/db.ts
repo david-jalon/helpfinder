@@ -100,18 +100,31 @@ export async function getGrantSeen(numConvocatoria: string) {
 // ── user_alerts (multi-tenant por user_id) ──
 
 /**
- * Devuelve las alertas del usuario actual, ordenadas por creación.
+ * Devuelve una PÁGINA de las alertas del usuario, más reciente primero.
  * El RLS filtra por auth.uid(), así que no hace falta pasar el userId.
+ * Se pagina porque el diario crece: leerlo entero acabaría truncándose.
  */
-export async function getAlertsForCurrentUser() {
+export async function getAlertsForCurrentUser(limit: number, offset: number) {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("user_alerts")
     .select("*")
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false })
+    .range(offset, offset + limit - 1);
 
   if (error) throw error;
-  return data;
+  return data ?? [];
+}
+
+/** Cuenta las alertas del usuario (para saber si hay más páginas). */
+export async function countAlertsForCurrentUser(): Promise<number> {
+  const supabase = await createClient();
+  const { count, error } = await supabase
+    .from("user_alerts")
+    .select("*", { count: "exact", head: true });
+
+  if (error) throw error;
+  return count ?? 0;
 }
 
 export type AlertUpsertInput = {

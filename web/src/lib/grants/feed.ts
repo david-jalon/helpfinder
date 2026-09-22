@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { chunkArray } from "@/lib/domain/chunk";
 
 /**
  * Feed de ayudas (BDNS).
@@ -70,18 +71,29 @@ export async function getGrantByNumConv(
  * Devuelve varias ayudas por sus num_convocatoria.
  * Se usa para completar título/organización/enlace de las alertas
  * persistidas en `user_alerts` al recargar el dashboard.
+ *
+ * Los ids se piden en trozos de 100: un `.in()` con cientos de ids podría
+ * superar el tamaño máximo de URL de Supabase/PostgREST.
  */
 export async function getGrantsSeenByIds(ids: string[]): Promise<SeenGrant[]> {
   if (ids.length === 0) return [];
 
   const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("grants_seen")
-    .select("*")
-    .in("num_convocatoria", ids);
+  const chunks = chunkArray([...new Set(ids)], 100);
 
-  if (error) throw error;
-  return (data ?? []).map(rowToSeenGrant);
+  const results = await Promise.all(
+    chunks.map(async (chunk) => {
+      const { data, error } = await supabase
+        .from("grants_seen")
+        .select("*")
+        .in("num_convocatoria", chunk);
+
+      if (error) throw error;
+      return data ?? [];
+    })
+  );
+
+  return results.flat().map(rowToSeenGrant);
 }
 
 /**

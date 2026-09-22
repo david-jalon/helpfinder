@@ -791,3 +791,41 @@
     gap: 0.5rem;
   }
 }
+
+/* ── paginación del diario ── */
+
+.loadMoreWrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 1.5rem;
+}
+
+.loadMore {
+  background: transparent;
+  border: 1px solid var(--hairline);
+  color: var(--fg);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.9rem;
+  padding: 0.7rem 1.4rem;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.loadMore:hover:not(:disabled) {
+  border-color: var(--sello);
+  color: var(--sello);
+}
+
+.loadMore:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.loadMoreError {
+  font-size: 0.85rem;
+  color: var(--danger, #c0392b);
+}
