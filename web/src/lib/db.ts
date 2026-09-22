@@ -1,5 +1,9 @@
 import type { Profile } from "@/lib/domain/profile";
-import type { FollowGrantInput } from "@/lib/dashboard/follow";
+import {
+  mergeFollowGrantWrite,
+  type FollowGrantInput,
+  type SeenGrantSnapshot,
+} from "@/lib/dashboard/follow";
 import type { AlertBucket } from "@/lib/dashboard/triage";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -244,17 +248,24 @@ export async function followGrantForUser(
   // se escribe con el cliente de la sesión (multi-tenant por RLS).
   const admin = createAdminClient();
 
+  // Leer lo que ya hay para no pisar datos buenos con vacíos (un «Seguir»
+  // no debe borrar el organismo/enlace que ya guardó el cron).
+  const { data: existing, error: readError } = await admin
+    .from("grants_seen")
+    .select("title, organization, source_url")
+    .eq("num_convocatoria", grant.id)
+    .maybeSingle();
+
+  if (readError) throw readError;
+
+  const row = mergeFollowGrantWrite(
+    grant,
+    (existing as SeenGrantSnapshot | null) ?? null
+  );
+
   const { error: grantError } = await admin
     .from("grants_seen")
-    .upsert(
-      {
-        num_convocatoria: grant.id,
-        title: grant.title,
-        organization: grant.organization,
-        source_url: grant.sourceUrl,
-      },
-      { onConflict: "num_convocatoria" }
-    );
+    .upsert(row, { onConflict: "num_convocatoria" });
 
   if (grantError) throw grantError;
 
