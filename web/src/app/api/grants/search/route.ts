@@ -6,6 +6,21 @@ export const runtime = "nodejs";
 
 
 
+const DEFAULT_ENRICH_MAX = 30;
+
+/**
+ * Cuántos resultados de la página se enriquecen con el detalle de BDNS.
+ * Enriquecer exige una llamada por convocatoria; limitarlo evita que una
+ * búsqueda con muchas páginas dispare decenas de peticiones. El resto se
+ * queda con los datos básicos (y su detalle se pide al abrir el modal).
+ */
+function getEnrichMaxPerRequest(): number {
+  const raw = Number(
+    process.env.BDNS_ENRICH_MAX_PER_REQUEST ?? String(DEFAULT_ENRICH_MAX)
+  );
+  return Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : DEFAULT_ENRICH_MAX;
+}
+
 function toPositiveInt(value: string | null, fallback: number): number {
   const parsed = Number(value);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
@@ -65,9 +80,11 @@ export async function GET(request: NextRequest) {
 
     // Enriquece cada resultado con lo que BDNS solo da en el detalle
     // (fechas del periodo de solicitud, elegibilidad...). Es una llamada
-    // por convocatoria, en paralelo, limitada a una página de resultados.
+    // por convocatoria, en paralelo y limitada a una página de resultados;
+    // además se limita cuántas se enriquecen por petición.
     const enriched = { ...data, items: data.items.map((item) => ({ ...item })) };
-    await enrichGrantsWithEligibility(enriched.items);
+    const enrichMax = getEnrichMaxPerRequest();
+    await enrichGrantsWithEligibility(enriched.items.slice(0, enrichMax));
 
     return NextResponse.json(
       {

@@ -1,4 +1,5 @@
 import type { GrantDetail, GrantItem } from "@/lib/domain/grants";
+import { createTtlCache } from "@/lib/domain/ttl-cache";
 import { buildInfosubvencionesConvocatoriaUrl, getBdnsApiBase } from "./urls";
 
 /**
@@ -196,10 +197,35 @@ export type EnrichableGrant = { id: string } & EligibilityFields;
  * Obtiene campos de elegibilidad de una convocatoria vía la API BDNS.
  * Devuelve `null` si la petición falla (degradación parcial).
  */
+
+const DEFAULT_DETAIL_CACHE_TTL_SECONDS = 3600;
+
+function getDetailCacheTtlMs(): number {
+  const raw = Number(
+    process.env.BDNS_DETAIL_CACHE_TTL_SECONDS ?? String(DEFAULT_DETAIL_CACHE_TTL_SECONDS)
+  );
+  if (!Number.isFinite(raw) || raw < 0) return DEFAULT_DETAIL_CACHE_TTL_SECONDS * 1000;
+  return Math.min(raw, 86400) * 1000;
+}
+
+/**
+ * Caché de elegibilidad por convocatoria. La elegibilidad cambia poco, así
+ * que cachearla evita repetir la misma llamada de detalle en cada búsqueda,
+ * paginación o tarjeta del dashboard. Solo se guardan los aciertos: un fallo
+ * se reintenta la próxima vez.
+ */
+const eligibilityCache = createTtlCache<EligibilityFields>({
+  maxEntries: 1000,
+  ttlMs: getDetailCacheTtlMs(),
+});
+
 export async function fetchGrantEligibility(
   numConv: string,
   timeoutMs = 8000,
 ): Promise<EligibilityFields | null> {
+  const cached = eligibilityCache.get(numConv);
+  if (cached) return cached;
+
   const url = new URL(`${getBdnsApiBase()}/convocatorias`);
   url.searchParams.set("numConv", numConv);
   url.searchParams.set("vpd", "GE");
@@ -224,7 +250,7 @@ export async function fetchGrantEligibility(
     const instruments = extractStrings(json.instrumentos);
     const amount = parseAmount(json.presupuestoTotal);
 
-    return {
+    const fields: EligibilityFields = {
       beneficiaryTypes: extractStrings(json.tiposBeneficiarios),
       sectors: extractStrings(json.sectores),
       impactRegions: extractStrings(json.regiones),
@@ -233,6 +259,9 @@ export async function fetchGrantEligibility(
       ...(amount !== null && { amount }),
       ...extractApplicationDates(json),
     };
+
+    eligibilityCache.set(numConv, fields);
+    return fields;
   } catch {
     return null;
   }
