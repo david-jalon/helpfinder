@@ -29,6 +29,9 @@ type DashboardData = {
   alerts: AlertDTO[];
   aiStatus: "ok" | "fallback" | null;
   aiMessage: string | null;
+  page?: number;
+  hasMore?: boolean;
+  total?: number;
 };
 
 type PageState =
@@ -167,23 +170,63 @@ function Ready({ data }: { data: DashboardData }) {
   const [toast, setToast] = useState<{ alert: AlertDTO } | null>(null);
   const toastTimer = useRef<number | null>(null);
 
+  // El diario se pide por páginas: se acumulan aquí y «Cargar más» añade.
+  const [allAlerts, setAllAlerts] = useState<AlertDTO[]>(data.alerts);
+  const [page, setPage] = useState(data.page ?? 1);
+  const [hasMore, setHasMore] = useState(data.hasMore ?? false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [loadMoreError, setLoadMoreError] = useState("");
+
   // La decisión visible = lo que el servidor devolvió + cambios optimistas.
   // Se descartan las alertas excluidas (beneficiario incorrecto, región
   // que no coincide o sin datos de región): no se listan ni cuentan.
   // No se borran de user_alerts: siguen en el diario persistido.
   const alerts = useMemo(
     () =>
-      data.alerts
+      allAlerts
         .map((alert) => ({
           ...alert,
           decision: alert.id in overrides ? overrides[alert.id] : alert.decision,
         }))
         .filter((alert) => !isNoiseAlert(alert))
         .filter((alert) => !removedIds.has(alert.id)),
-    [data.alerts, overrides, removedIds]
+    [allAlerts, overrides, removedIds]
   );
 
   const summary = useMemo(() => buildTabSummary(alerts), [alerts]);
+
+  async function loadMore() {
+    if (loadingMore || !hasMore) return;
+    setLoadingMore(true);
+    setLoadMoreError("");
+
+    try {
+      const next = page + 1;
+      const res = await fetch(`/api/dashboard?page=${next}&limit=50`, {
+        cache: "no-store",
+      });
+      const json = (await res.json()) as {
+        ok: boolean;
+        error?: string;
+        data: DashboardData | null;
+      };
+
+      if (!res.ok || !json.ok || !json.data) {
+        throw new Error(json.error ?? "No se pudo cargar más");
+      }
+
+      const nextData = json.data;
+      setAllAlerts((prev) => [...prev, ...nextData.alerts]);
+      setPage(nextData.page ?? next);
+      setHasMore(Boolean(nextData.hasMore));
+    } catch (err) {
+      setLoadMoreError(
+        err instanceof Error ? err.message : "Error cargando más ayudas"
+      );
+    } finally {
+      setLoadingMore(false);
+    }
+  }
 
   useEffect(() => {
     return () => {
@@ -415,6 +458,23 @@ function Ready({ data }: { data: DashboardData }) {
             </ul>
           </section>
         )
+      )}
+
+      {/* ── cargar más (diario paginado) ── */}
+      {hasMore && (
+        <div className={styles.loadMoreWrap}>
+          <button
+            type="button"
+            className={styles.loadMore}
+            onClick={loadMore}
+            disabled={loadingMore}
+          >
+            {loadingMore ? "Cargando…" : "Cargar más ayudas"}
+          </button>
+          {loadMoreError && (
+            <p className={styles.loadMoreError}>{loadMoreError}</p>
+          )}
+        </div>
       )}
 
       {/* ── toast de deshacer ── */}

@@ -8,7 +8,9 @@
  *  2. Matcher determinista → matched / maybe / excluded.
  *  3. Una llamada Gemini (key del usuario) solo para matched+maybe.
  *  4. Guarda todo en `user_alerts` (upsert idempotente por user+grant).
- *  5. Avanza la marca de agua: `last_seen_at = ahora`.
+ *  5. Avanza la marca de agua hasta la ayuda más reciente PROCESADA (no
+ *     "ahora"): si hubo más nuevas que el tope, las que faltan siguen
+ *     contando como nuevas en la próxima apertura.
  *
  * El dashboard NO es solo lo de hoy: es un DIARIO persistente. Por eso
  * esta orquestación solo produce las alertas frescas, y la ruta API las
@@ -31,7 +33,11 @@ import {
   type ScoreResult,
   type ScorableGrant,
 } from "@/lib/ai/grant-scorer";
-import { getGrantsSeenSince, type SeenGrant } from "@/lib/grants/feed";
+import {
+  getGrantsSeenSince,
+  getRecentGrants,
+  type SeenGrant,
+} from "@/lib/grants/feed";
 import { upsertAlerts, upsertProfile, type AlertUpsertInput } from "@/lib/db";
 import {
   isAlertDecision,
@@ -295,12 +301,57 @@ export function rebucketPersisted(
 /*  Orquestación con BD (y Gemini si hace falta)                       */
 /* ------------------------------------------------------------------ */
 
+const DEFAULT_NEW_GRANTS_LIMIT = 200;
+
+/** Cuántas ayudas nuevas se procesan como máximo al abrir el panel. */
+export function getNewGrantsLimit(): number {
+  const raw = Number(
+    process.env.AI_MAX_NEW_GRANTS_PER_RUN ?? String(DEFAULT_NEW_GRANTS_LIMIT)
+  );
+  return Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : DEFAULT_NEW_GRANTS_LIMIT;
+}
+
+/**
+ * Calcula la nueva marca de agua `last_seen_at`.
+ * - Primera visita (prev null): ahora; no se revisa el histórico (sin backfill).
+ * - Sin ayudas nuevas: se conserva la anterior (no se avanza en balde).
+ * - Con ayudas: la fecha de la más reciente REALMENTE procesada, no "ahora".
+ *   Si quedaron ayudas sin procesar por el tope, siguen contando como nuevas.
+ */
+export function nextWatermark(
+  prev: string | null,
+  processed: Pick<SeenGrant, "firstSeenAt">[],
+  nowIso: string
+): string {
+  if (prev === null) return nowIso;
+  if (processed.length === 0) return prev;
+
+  let max = processed[0].firstSeenAt;
+  for (const grant of processed) {
+    if (grant.firstSeenAt > max) max = grant.firstSeenAt;
+  }
+  return max;
+}
+
 export async function runAlerts(profile: Profile): Promise<RunAlertsResult> {
-  // 1) Ayudas nuevas desde la última visita
-  const seenGrants = await getGrantsSeenSince(profile.lastSeenAt);
+  const limit = getNewGrantsLimit();
+
+  // 1) Ayudas nuevas desde la última visita.
+  //    - Primera visita: las más recientes (sin backfill).
+  //    - Resto: desde la marca de agua, de la más antigua a la más nueva,
+  //      para no saltarse ninguna si hay más que el tope.
+  const lastSeenAt = profile.lastSeenAt;
+  const isFirstVisit = lastSeenAt === null;
+  const seenGrants = isFirstVisit
+    ? await getRecentGrants(limit)
+    : await getGrantsSeenSince(lastSeenAt, limit);
+
+  // Para mostrar, lo más reciente primero (la marca de agua avanza sobre
+  // `seenGrants`, que en la visita recurrente viene en orden ascendente).
+  const orderedGrants = isFirstVisit ? seenGrants : [...seenGrants].reverse();
 
   // 2) Matcher determinista
-  const items = seenGrants.map(grantItemFromSeen);
+  const items = orderedGrants.map(grantItemFromSeen);
   const outcome = matchGrants(profile, items);
 
   // 3) Una llamada Gemini SOLO con matched+maybe (key del usuario)
@@ -318,7 +369,7 @@ export async function runAlerts(profile: Profile): Promise<RunAlertsResult> {
       : null;
 
   // 4) Persistir alertas (upsert idempotente) y recuperar sus ids
-  const dtos = buildAlertDTOs(seenGrants, outcome, scoreResult);
+  const dtos = buildAlertDTOs(orderedGrants, outcome, scoreResult);
 
   const upsertInputs: AlertUpsertInput[] = dtos.map((d) => ({
     grantId: d.grantId,
@@ -333,10 +384,11 @@ export async function runAlerts(profile: Profile): Promise<RunAlertsResult> {
   const idByGrant = new Map(inserted.map((r) => [r.grant_id, r.id]));
   const alerts = dtos.map((d) => ({ ...d, id: idByGrant.get(d.grantId) ?? "" }));
 
-  // 5) Avanzar la marca de agua para la próxima visita
+  // 5) Avanzar la marca de agua SOLO hasta lo realmente procesado.
   const nowIso = new Date().toISOString();
-  if (profile.lastSeenAt !== nowIso) {
-    await upsertProfile(profile.userId, { lastSeenAt: nowIso });
+  const watermark = nextWatermark(profile.lastSeenAt, seenGrants, nowIso);
+  if (profile.lastSeenAt !== watermark) {
+    await upsertProfile(profile.userId, { lastSeenAt: watermark });
   }
 
   return {

@@ -1,7 +1,14 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/supabase/server";
-import { getProfile, getAlertsForCurrentUser, updateAlertBuckets, deleteAlerts } from "@/lib/db";
+import {
+  getProfile,
+  getAlertsForCurrentUser,
+  countAlertsForCurrentUser,
+  updateAlertBuckets,
+  deleteAlerts,
+} from "@/lib/db";
 import { getGrantsSeenByIds } from "@/lib/grants/feed";
+import { parseDiaryPagination } from "@/lib/dashboard/pagination";
 import {
   runAlerts,
   rebucketPersisted,
@@ -12,24 +19,23 @@ import {
 /**
  * API Dashboard — diario de decisiones
  *
- * GET /api/dashboard  → el diario completo de alertas del usuario.
+ * GET /api/dashboard?page=1&limit=50  → una PÁGINA del diario del usuario.
  *
  * Carga perezosa (lazy): la IA corre AQUÍ, cuando el usuario abre su
- * panel (nunca en el cron). Una sola llamada batch con su key.
+ * panel (nunca en el cron). Una sola llamada batch con su key. En las
+ * páginas siguientes `runAlerts` ya no tiene nada nuevo que puntuar.
  *
- * La respuesta es el DIARIO, no solo lo de hoy:
- *   1. `runAlerts` genera y puntúa las ayudas NUEVAS desde la última visita.
- *   2. Se leen todas las alertas persistidas en `user_alerts`.
- *   3. Se fusionan: lo fresco arriba; el resto conserva su triaje
- *      (`decision`), de modo que recargar la página no pierde nada.
+ * El diario se PAGINA: leerlo entero acabaría truncándose (PostgREST
+ * devuelve ~1000 filas como máximo). La respuesta trae `hasMore` para que
+ * el UI pueda ofrecer «Cargar más».
  *
  * Respuestas:
- *   - 200 { ok, data }        → alertas + estado IA
+ *   - 200 { ok, data }        → página de alertas + estado IA + hasMore
  *   - 200 { ok, data:null, needsProfile:true } → falta el perfil
  *   - 401 { ok:false }        → sin sesión
  */
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const user = await getCurrentUser();
     if (!user) {
@@ -49,13 +55,23 @@ export async function GET() {
       });
     }
 
-    // 1) Lo fresco de hoy (nuevas + puntuación IA o fallback)
+    const { page, limit, offset } = parseDiaryPagination(
+      request.nextUrl.searchParams.get("page"),
+      request.nextUrl.searchParams.get("limit")
+    );
+
+    // 1) Lo fresco (nuevas + puntuación IA o fallback). Tras la primera
+    //    carga el agua ya avanzó, así que en páginas siguientes va vacío.
     const fresh = await runAlerts(profile);
 
-    // 2) Todas las alertas persistidas del usuario (más reciente primero),
-    //    re-clasificadas con el matcher ACTUAL para propagar cambios de
-    //    lógica o de perfil a lo ya guardado (sin tocar triaje ni score).
-    const persistedRows = (await getAlertsForCurrentUser()) as PersistedAlertRow[];
+    // 2) Una página de alertas persistidas (más reciente primero),
+    //    re-clasificadas con el matcher ACTUAL (sin tocar triaje ni score).
+    const persistedRows = (await getAlertsForCurrentUser(
+      limit,
+      offset
+    )) as PersistedAlertRow[];
+    const total = await countAlertsForCurrentUser();
+
     const grantIds = persistedRows.map((row) => row.grant_id);
     const grants = await getGrantsSeenByIds(grantIds);
     const grantById = new Map(grants.map((g) => [g.numConvocatoria, g]));
@@ -66,8 +82,9 @@ export async function GET() {
     // 2b) Las reclasificadas como excluded ya no aplican a este perfil.
     await deleteAlerts(user.id, rebucketed.deletes);
 
-    // 3) Fusión del diario
+    // 3) Fusión del diario (lo fresco primero; el resto de la página)
     const alerts = mergeAlertLists(fresh.alerts, rebucketed.alerts);
+    const hasMore = offset + persistedRows.length < total;
 
     return NextResponse.json({
       ok: true,
@@ -75,6 +92,9 @@ export async function GET() {
         alerts,
         aiStatus: fresh.aiStatus,
         aiMessage: fresh.aiMessage,
+        page,
+        hasMore,
+        total,
       },
     });
   } catch (error) {

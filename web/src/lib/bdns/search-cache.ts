@@ -3,6 +3,7 @@ import type { GrantsSearchResult } from "@/lib/domain/grants";
 type Entry = { expiresAt: number; payload: GrantsSearchResult };
 
 const MAX_ENTRIES = 200;
+const DEFAULT_TTL_SECONDS = 300;
 const cache = new Map<string, Entry>();
 
 function cloneResult(data: GrantsSearchResult): GrantsSearchResult {
@@ -17,9 +18,16 @@ function evictIfNeeded() {
   }
 }
 
+/**
+ * TTL de la caché de búsquedas, en segundos.
+ * Por defecto 300 s (5 min) para no repetir llamadas idénticas a BDNS.
+ * Ponlo a 0 para desactivarla.
+ */
 export function getBdnsSearchCacheTtlSeconds(): number {
-  const raw = Number(process.env.BDNS_SEARCH_CACHE_TTL_SECONDS ?? "0");
-  if (!Number.isFinite(raw) || raw <= 0) return 0;
+  const raw = Number(
+    process.env.BDNS_SEARCH_CACHE_TTL_SECONDS ?? String(DEFAULT_TTL_SECONDS)
+  );
+  if (!Number.isFinite(raw) || raw < 0) return DEFAULT_TTL_SECONDS;
   return Math.min(Math.floor(raw), 3600);
 }
 

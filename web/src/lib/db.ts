@@ -1,7 +1,12 @@
 import type { Profile } from "@/lib/domain/profile";
-import type { FollowGrantInput } from "@/lib/dashboard/follow";
+import {
+  mergeFollowGrantWrite,
+  type FollowGrantInput,
+  type SeenGrantSnapshot,
+} from "@/lib/dashboard/follow";
 import type { AlertBucket } from "@/lib/dashboard/triage";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 /**
  * Capa de acceso a datos (Supabase).
@@ -95,18 +100,31 @@ export async function getGrantSeen(numConvocatoria: string) {
 // ── user_alerts (multi-tenant por user_id) ──
 
 /**
- * Devuelve las alertas del usuario actual, ordenadas por creación.
+ * Devuelve una PÁGINA de las alertas del usuario, más reciente primero.
  * El RLS filtra por auth.uid(), así que no hace falta pasar el userId.
+ * Se pagina porque el diario crece: leerlo entero acabaría truncándose.
  */
-export async function getAlertsForCurrentUser() {
+export async function getAlertsForCurrentUser(limit: number, offset: number) {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("user_alerts")
     .select("*")
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false })
+    .range(offset, offset + limit - 1);
 
   if (error) throw error;
-  return data;
+  return data ?? [];
+}
+
+/** Cuenta las alertas del usuario (para saber si hay más páginas). */
+export async function countAlertsForCurrentUser(): Promise<number> {
+  const supabase = await createClient();
+  const { count, error } = await supabase
+    .from("user_alerts")
+    .select("*", { count: "exact", head: true });
+
+  if (error) throw error;
+  return count ?? 0;
 }
 
 export type AlertUpsertInput = {
@@ -238,22 +256,33 @@ export async function followGrantForUser(
   userId: string,
   grant: FollowGrantInput
 ): Promise<void> {
-  const supabase = await createClient();
+  // `grants_seen` es la caché pública compartida: con RLS cerrada, la
+  // escribe el servidor con service role (nunca el usuario). La alerta sí
+  // se escribe con el cliente de la sesión (multi-tenant por RLS).
+  const admin = createAdminClient();
 
-  const { error: grantError } = await supabase
+  // Leer lo que ya hay para no pisar datos buenos con vacíos (un «Seguir»
+  // no debe borrar el organismo/enlace que ya guardó el cron).
+  const { data: existing, error: readError } = await admin
     .from("grants_seen")
-    .upsert(
-      {
-        num_convocatoria: grant.id,
-        title: grant.title,
-        organization: grant.organization,
-        source_url: grant.sourceUrl,
-      },
-      { onConflict: "num_convocatoria" }
-    );
+    .select("title, organization, source_url")
+    .eq("num_convocatoria", grant.id)
+    .maybeSingle();
+
+  if (readError) throw readError;
+
+  const row = mergeFollowGrantWrite(
+    grant,
+    (existing as SeenGrantSnapshot | null) ?? null
+  );
+
+  const { error: grantError } = await admin
+    .from("grants_seen")
+    .upsert(row, { onConflict: "num_convocatoria" });
 
   if (grantError) throw grantError;
 
+  const supabase = await createClient();
   const { error: alertError } = await supabase
     .from("user_alerts")
     .upsert(

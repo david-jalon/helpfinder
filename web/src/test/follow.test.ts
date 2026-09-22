@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { validateFollowGrant } from "@/lib/dashboard/follow";
+import {
+  mergeFollowGrantWrite,
+  resolveFollowGrant,
+  validateFollowGrant,
+} from "@/lib/dashboard/follow";
 
 describe("validateFollowGrant (Seguir desde la landing)", () => {
   it("acepta un grant válido y lo normaliza", () => {
@@ -57,5 +61,103 @@ describe("validateFollowGrant (Seguir desde la landing)", () => {
   it("rechaza cuerpo que no es objeto", () => {
     expect(validateFollowGrant(null).ok).toBe(false);
     expect(validateFollowGrant("nope").ok).toBe(false);
+  });
+});
+
+describe("resolveFollowGrant (validación contra BDNS)", () => {
+  const validated = {
+    id: "780021",
+    title: "Título del cliente",
+    organization: "Organismo del cliente",
+    sourceUrl: "https://sitio-malicioso.example/phishing",
+  };
+
+  it("SIEMPRE regenera la URL desde el id (ignora la del cliente)", () => {
+    const grant = resolveFollowGrant(validated, null);
+
+    expect(grant.sourceUrl).toBe(
+      "https://www.infosubvenciones.es/bdnstrans/GE/es/convocatoria/780021"
+    );
+    expect(grant.sourceUrl).not.toContain("malicioso");
+  });
+
+  it("prefiere el título y organismo autoritativos de BDNS", () => {
+    const grant = resolveFollowGrant(validated, {
+      title: "Título oficial",
+      organization: "Organismo oficial",
+    });
+
+    expect(grant.title).toBe("Título oficial");
+    expect(grant.organization).toBe("Organismo oficial");
+    expect(grant.id).toBe("780021");
+  });
+
+  it("usa los datos del cliente si BDNS no trae título/organismo", () => {
+    const grant = resolveFollowGrant(validated, {
+      title: "",
+      organization: null,
+    });
+
+    expect(grant.title).toBe("Título del cliente");
+    expect(grant.organization).toBe("Organismo del cliente");
+  });
+});
+
+describe("mergeFollowGrantWrite (no pisar datos con vacíos)", () => {
+  const incoming = {
+    id: "780021",
+    title: "Título nuevo",
+    organization: null,
+    sourceUrl: "https://www.infosubvenciones.es/bdnstrans/GE/es/convocatoria/780021",
+  };
+
+  it("conserva el organismo existente si el nuevo es null", () => {
+    const row = mergeFollowGrantWrite(incoming, {
+      title: "Título viejo",
+      organization: "Organismo ya guardado",
+      source_url: "https://vieja.example",
+    });
+
+    expect(row.organization).toBe("Organismo ya guardado");
+    expect(row.title).toBe("Título nuevo");
+    expect(row.source_url).toBe(incoming.sourceUrl);
+  });
+
+  it("usa los valores nuevos cuando vienen informados", () => {
+    const row = mergeFollowGrantWrite(
+      { ...incoming, organization: "Organismo nuevo" },
+      {
+        title: "Título viejo",
+        organization: "Organismo ya guardado",
+        source_url: null,
+      }
+    );
+
+    expect(row.organization).toBe("Organismo nuevo");
+  });
+
+  it("sin fila existente, escribe lo que llega", () => {
+    const row = mergeFollowGrantWrite(incoming, null);
+
+    expect(row).toEqual({
+      num_convocatoria: "780021",
+      title: "Título nuevo",
+      organization: null,
+      source_url: incoming.sourceUrl,
+    });
+  });
+
+  it("si el título llega vacío, cae al existente y luego al id", () => {
+    const conExistente = mergeFollowGrantWrite(
+      { ...incoming, title: "   " },
+      { title: "Título viejo", organization: null, source_url: null }
+    );
+    expect(conExistente.title).toBe("Título viejo");
+
+    const sinExistente = mergeFollowGrantWrite(
+      { ...incoming, title: "" },
+      null
+    );
+    expect(sinExistente.title).toBe("780021");
   });
 });
