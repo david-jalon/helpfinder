@@ -92,11 +92,13 @@ describe("GET /api/profile (API key)", () => {
 
 describe("PUT /api/profile (API key)", () => {
   it("reenvía la key nueva recortada", async () => {
-    const res = await PUT(putRequest({ geminiApiKey: "  AIza-new  " }));
+    const res = await PUT(
+      putRequest({ geminiApiKey: "  AIzaSyA1234567890abcdefghijklmnopqrst  " })
+    );
 
     expect(res.status).toBe(200);
     expect(mocks.upsertProfile).toHaveBeenCalledWith("u1", {
-      geminiApiKey: "AIza-new",
+      geminiApiKey: "AIzaSyA1234567890abcdefghijklmnopqrst",
     });
   });
 
@@ -118,6 +120,47 @@ describe("PUT /api/profile (API key)", () => {
 
   it("responde 400 si no hay campos para actualizar", async () => {
     const res = await PUT(putRequest({}));
+
+    expect(res.status).toBe(400);
+  });
+});
+
+describe("PUT /api/profile (validación de entrada)", () => {
+  it("filtra regiones desconocidas antes de guardar", async () => {
+    await PUT(putRequest({ regiones: ["madrileña", "marte", "madrileña"] }));
+
+    expect(mocks.upsertProfile).toHaveBeenCalledWith("u1", {
+      regiones: ["madrileña"],
+    });
+  });
+
+  it("responde 400 con un tipo de perfil no válido", async () => {
+    const res = await PUT(putRequest({ profileType: "empresa" }));
+
+    expect(res.status).toBe(400);
+    expect(mocks.upsertProfile).not.toHaveBeenCalled();
+  });
+
+  it("responde 400 con una API key de formato incorrecto", async () => {
+    const res = await PUT(putRequest({ geminiApiKey: "no-es-una-key" }));
+
+    expect(res.status).toBe(400);
+  });
+
+  it("responde 400 con palabras clave demasiado largas", async () => {
+    const res = await PUT(putRequest({ keywords: "x".repeat(301) }));
+
+    expect(res.status).toBe(400);
+  });
+
+  it("responde 400 con un correo inválido", async () => {
+    const res = await PUT(putRequest({ notificationEmail: "malo" }));
+
+    expect(res.status).toBe(400);
+  });
+
+  it("responde 400 si regiones no es un array", async () => {
+    const res = await PUT(putRequest({ regiones: "madrileña" }));
 
     expect(res.status).toBe(400);
   });
