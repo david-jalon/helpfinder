@@ -45,8 +45,9 @@ create policy "perfil: actualización del dueño"
 -- ────────────────────────────────────────────────────────────
 -- 2) grants_seen — ayudas BDNS ya detectadas (dato público)
 --    Esta tabla NO es multi-tenant: es una caché compartida.
---    Cualquier usuario puede LEERLA (dato público BDNS). Solo
---    el cron (Fase 9) la escribe, con la key del servidor.
+--    Cualquier usuario puede LEERLA (dato público BDNS). La
+--    ESCRITURA la hace el servidor con la SERVICE ROLE key
+--    (`SUPABASE_SERVICE_ROLE_KEY`, solo-servidor), que salta RLS.
 -- ────────────────────────────────────────────────────────────
 create table if not exists public.grants_seen (
   num_convocatoria text primary key, -- el ID que manda BDNS
@@ -67,17 +68,15 @@ create policy "grants_seen: lectura pública"
   on public.grants_seen for select
   using (true);
 
--- Escritura: dato público BDNS, la escribe el cron (Fase 9). Sin estas
--- políticas, el cron (cliente anónimo del servidor) no podría escribir
--- porque RLS bloquea todo lo que no tiene política. Añadidas en Fase 11
--- al destaparse el bug en las pruebas del dashboard.
-create policy "grants_seen: inserción pública (dato público)"
-  on public.grants_seen for insert
-  with check (true);
-
-create policy "grants_seen: actualización pública (dato público)"
-  on public.grants_seen for update
-  using (true);
+-- IMPORTANTE (Fase 15 / seguridad): NO hay políticas de insert/update.
+-- Antes existían con `with check (true)`, lo que permitía a cualquiera con
+-- la anon key (pública) inyectar o modificar filas que ven todos los
+-- usuarios (títulos y enlaces falsos). Ahora solo escribe el servidor:
+--   - el cron diario (service role)
+--   - «Seguir» desde la landing (service role, tras validar el id en BDNS)
+-- Para aplicar el cambio en un proyecto ya creado, ejecuta en el SQL Editor:
+--   drop policy if exists "grants_seen: inserción pública (dato público)" on public.grants_seen;
+--   drop policy if exists "grants_seen: actualización pública (dato público)" on public.grants_seen;
 
 -- ────────────────────────────────────────────────────────────
 -- 3) user_alerts — alertas de cada usuario sobre una ayuda

@@ -1,3 +1,5 @@
+import { buildInfosubvencionesConvocatoriaUrl } from "@/lib/bdns/urls";
+
 /**
  * Seguir una ayuda desde la landing
  *
@@ -46,4 +48,30 @@ export function validateFollowGrant(raw: unknown): FollowGrantValidation {
       : null;
 
   return { ok: true, grant: { id, title, organization, sourceUrl } };
+}
+
+/** Datos autoritativos de BDNS (título/organismo), si se pudieron obtener. */
+export type FollowGrantAuthoritative = {
+  title?: string | null;
+  organization?: string | null;
+};
+
+/**
+ * Combina lo que manda el cliente con el detalle AUTORITATIVO de BDNS.
+ *
+ * - La `sourceUrl` se SIEMPRE regenera desde el id: nunca se guarda una URL
+ *   del cliente (evita enlaces maliciosos en la caché compartida).
+ * - Título y organismo se prefieren los de BDNS; si no llegaron, los del
+ *   cliente (el id ya se validó como numérico).
+ */
+export function resolveFollowGrant(
+  validated: FollowGrantInput,
+  authoritative: FollowGrantAuthoritative | null
+): FollowGrantInput {
+  return {
+    id: validated.id,
+    title: authoritative?.title?.trim() || validated.title,
+    organization: authoritative?.organization?.trim() || validated.organization,
+    sourceUrl: buildInfosubvencionesConvocatoriaUrl(validated.id),
+  };
 }

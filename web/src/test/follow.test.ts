@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { validateFollowGrant } from "@/lib/dashboard/follow";
+import { resolveFollowGrant, validateFollowGrant } from "@/lib/dashboard/follow";
 
 describe("validateFollowGrant (Seguir desde la landing)", () => {
   it("acepta un grant válido y lo normaliza", () => {
@@ -57,5 +57,44 @@ describe("validateFollowGrant (Seguir desde la landing)", () => {
   it("rechaza cuerpo que no es objeto", () => {
     expect(validateFollowGrant(null).ok).toBe(false);
     expect(validateFollowGrant("nope").ok).toBe(false);
+  });
+});
+
+describe("resolveFollowGrant (validación contra BDNS)", () => {
+  const validated = {
+    id: "780021",
+    title: "Título del cliente",
+    organization: "Organismo del cliente",
+    sourceUrl: "https://sitio-malicioso.example/phishing",
+  };
+
+  it("SIEMPRE regenera la URL desde el id (ignora la del cliente)", () => {
+    const grant = resolveFollowGrant(validated, null);
+
+    expect(grant.sourceUrl).toBe(
+      "https://www.infosubvenciones.es/bdnstrans/GE/es/convocatoria/780021"
+    );
+    expect(grant.sourceUrl).not.toContain("malicioso");
+  });
+
+  it("prefiere el título y organismo autoritativos de BDNS", () => {
+    const grant = resolveFollowGrant(validated, {
+      title: "Título oficial",
+      organization: "Organismo oficial",
+    });
+
+    expect(grant.title).toBe("Título oficial");
+    expect(grant.organization).toBe("Organismo oficial");
+    expect(grant.id).toBe("780021");
+  });
+
+  it("usa los datos del cliente si BDNS no trae título/organismo", () => {
+    const grant = resolveFollowGrant(validated, {
+      title: "",
+      organization: null,
+    });
+
+    expect(grant.title).toBe("Título del cliente");
+    expect(grant.organization).toBe("Organismo del cliente");
   });
 });

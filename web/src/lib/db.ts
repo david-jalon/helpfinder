@@ -2,6 +2,7 @@ import type { Profile } from "@/lib/domain/profile";
 import type { FollowGrantInput } from "@/lib/dashboard/follow";
 import type { AlertBucket } from "@/lib/dashboard/triage";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 /**
  * Capa de acceso a datos (Supabase).
@@ -238,9 +239,12 @@ export async function followGrantForUser(
   userId: string,
   grant: FollowGrantInput
 ): Promise<void> {
-  const supabase = await createClient();
+  // `grants_seen` es la caché pública compartida: con RLS cerrada, la
+  // escribe el servidor con service role (nunca el usuario). La alerta sí
+  // se escribe con el cliente de la sesión (multi-tenant por RLS).
+  const admin = createAdminClient();
 
-  const { error: grantError } = await supabase
+  const { error: grantError } = await admin
     .from("grants_seen")
     .upsert(
       {
@@ -254,6 +258,7 @@ export async function followGrantForUser(
 
   if (grantError) throw grantError;
 
+  const supabase = await createClient();
   const { error: alertError } = await supabase
     .from("user_alerts")
     .upsert(

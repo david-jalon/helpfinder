@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { searchGrants } from "@/lib/bdns/client";
 import { enrichGrantsWithEligibility } from "@/lib/bdns/detail";
 import { getGrantsNeedingEnrichment } from "@/lib/grants/feed";
@@ -117,7 +117,7 @@ function getDateString(daysBack: number): string {
 async function getKnownIds(grantIds: string[]): Promise<Set<string>> {
   if (grantIds.length === 0) return new Set();
 
-  const supabase = await createClient();
+  const supabase = createAdminClient();
   const { data, error } = await supabase
     .from("grants_seen")
     .select("num_convocatoria")
@@ -155,7 +155,7 @@ async function upsertGrantsSeen(
 ): Promise<void> {
   if (grants.length === 0) return;
 
-  const supabase = await createClient();
+  const supabase = createAdminClient();
   const nowIso = new Date().toISOString();
 
   const rows = grants.map((g) => ({
