@@ -29,7 +29,9 @@ import type { GrantItem } from "@/lib/domain/grants";
 import type { Profile } from "@/lib/domain/profile";
 import { matchGrant, matchGrants, type MatchOutcome } from "@/lib/matching/matcher";
 import {
+  hasAiConfigured,
   scoreGrantsForUser,
+  type ScoreFallbackKind,
   type ScoreResult,
   type ScorableGrant,
 } from "@/lib/ai/grant-scorer";
@@ -59,6 +61,10 @@ export type RunAlertsResult = {
   alerts: AlertDTO[];
   aiStatus: "ok" | "fallback" | null;
   aiMessage: string | null;
+  /** El usuario tiene su key de Gemini guardada (distingue "falta key" de "falló la IA"). */
+  aiConfigured: boolean;
+  /** Motivo del fallback: "no-key" | "transient" | "invalid"; null si no hubo fallback. */
+  aiKind: ScoreFallbackKind | null;
 };
 
 export type {
@@ -398,5 +404,7 @@ export async function runAlerts(profile: Profile): Promise<RunAlertsResult> {
       scoreResult?.status === "fallback"
         ? scoreResult.message
         : null,
+    aiConfigured: hasAiConfigured(profile),
+    aiKind: scoreResult?.status === "fallback" ? scoreResult.kind : null,
   };
 }

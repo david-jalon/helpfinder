@@ -7,7 +7,9 @@
  * Reglas de oro:
  *   - La key sale de `profile.geminiApiKey` y se usa SOLO en el servidor.
  *   - Nunca viaja al navegador ni se loguea.
- *   - Fallback obligatorio: sin key o ante error 429 (cuota) se devuelve
+ *   - Ante saturación de Gemini (429/5xx) reintenta con backoff y prueba una
+ *     cadena de modelos de respaldo antes de rendirse.
+ *   - Fallback obligatorio: sin key o si fallan todos los modelos se devuelve
  *     el resultado del matcher con el motivo de la regla. Nunca se rompe.
  */
 
@@ -24,9 +26,20 @@ export type ScoredGrant = {
   reason: string;
 };
 
+/**
+ * Por qué se cayó al fallback, para que el dashboard muestre el aviso
+ * correcto (no es lo mismo "te falta la key" que "Gemini está saturado").
+ */
+export type ScoreFallbackKind = "no-key" | "transient" | "invalid";
+
 export type ScoreResult =
   | { status: "ok"; results: ScoredGrant[]; model: string }
-  | { status: "fallback"; results: ScoredGrant[]; message: string };
+  | {
+      status: "fallback";
+      results: ScoredGrant[];
+      message: string;
+      kind: ScoreFallbackKind;
+    };
 
 export type ScorableGrant = {
   grant: GrantItem;
@@ -37,13 +50,70 @@ export type ScorableGrant = {
 /*  Configuración (por usuario: su key; el modelo es global)           */
 /* ------------------------------------------------------------------ */
 
-function getModel(): string {
-  return process.env.GEMINI_MODEL?.trim() || "gemini-3.6-flash";
+/** Modelo principal por defecto: el Flash estable más reciente (GA ago 2026). */
+const DEFAULT_MODEL = "gemini-3.8-flash";
+
+/**
+ * Cadena de respaldo si el principal está saturado (503) o deja de existir.
+ * IMPORTANTE: solo modelos Gemini 3.x vigentes. Los 2.0 están apagados y los
+ * 2.5 tienen acceso restringido a cuentas antiguas, así que NO valen de plan B.
+ */
+const DEFAULT_FALLBACK_MODELS = [
+  "gemini-3.7-flash",
+  "gemini-3.5-flash",
+  "gemini-3.5-flash-lite",
+];
+
+/** Estados transitorios de Gemini que merecen un reintento. */
+const RETRYABLE_STATUSES = new Set([429, 500, 502, 503, 504]);
+
+/**
+ * Cadena de modelos a probar, en orden y sin repetidos:
+ * `GEMINI_MODEL` primero y luego `GEMINI_FALLBACK_MODELS` (o los de por defecto).
+ */
+export function getModels(): string[] {
+  const primary = process.env.GEMINI_MODEL?.trim() || DEFAULT_MODEL;
+  const configured = (process.env.GEMINI_FALLBACK_MODELS ?? "")
+    .split(",")
+    .map((m) => m.trim())
+    .filter((m) => m.length > 0);
+  const fallbacks = configured.length > 0 ? configured : DEFAULT_FALLBACK_MODELS;
+  return [...new Set([primary, ...fallbacks])];
 }
 
 function getMaxGrants(): number {
   const raw = Number(process.env.AI_MAX_GRANTS_PER_CALL ?? "10");
   return Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : 10;
+}
+
+function getRetryAttempts(): number {
+  const raw = Number(process.env.AI_RETRY_ATTEMPTS ?? "2");
+  return Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : 0;
+}
+
+function getRetryBaseMs(): number {
+  const raw = Number(process.env.AI_RETRY_BASE_MS ?? "400");
+  return Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : 400;
+}
+
+function errorStatus(error: unknown): number | null {
+  const status = (error as { status?: unknown } | null)?.status;
+  return typeof status === "number" ? status : null;
+}
+
+/** ¿Es un error pasajero de Gemini que conviene reintentar? */
+export function isRetryableError(error: unknown): boolean {
+  const status = errorStatus(error);
+  return status !== null && RETRYABLE_STATUSES.has(status);
+}
+
+/** Espera exponencial con un poco de azar para no sincronizar reintentos. */
+function backoffDelayMs(attempt: number, baseMs: number): number {
+  return baseMs * 2 ** attempt + Math.random() * baseMs;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /** Un usuario "tiene IA configurada" si guardó su key en el perfil. */
@@ -219,10 +289,53 @@ export function formatScoringError(error: unknown): string {
   if (status === 429) {
     return `Cuota de Gemini agotada (429). ${parts.join(" ")}`.trim();
   }
+  if (status === 503) {
+    return `Gemini está saturado temporalmente (503). ${parts.join(" ")}`.trim();
+  }
   if (status !== null) {
     return `Gemini respondió con error ${status}. ${parts.join(" ")}`.trim();
   }
   return `No se pudo puntuar con IA: ${parts.join(" ")}`.trim();
+}
+
+/* ------------------------------------------------------------------ */
+/*  Llamada a Gemini con reintentos                                    */
+/* ------------------------------------------------------------------ */
+
+const SYSTEM_INSTRUCTION =
+  "Responde siempre en español. Solo JSON, sin markdown.";
+
+/**
+ * Pide a Gemini un modelo concreto, reintentando con backoff si el error es
+ * transitorio (429/5xx). Si el error no es reintentable (p. ej. 400/403) se
+ * lanza de inmediato para no gastar tiempo ni probar más modelos.
+ */
+async function generateWithRetry(
+  genAI: GoogleGenerativeAI,
+  modelName: string,
+  prompt: string
+): Promise<string> {
+  const model = genAI.getGenerativeModel({
+    model: modelName,
+    systemInstruction: SYSTEM_INSTRUCTION,
+  });
+
+  const attempts = getRetryAttempts();
+  const baseMs = getRetryBaseMs();
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt <= attempts; attempt++) {
+    try {
+      const result = await model.generateContent(prompt);
+      return result.response.text() ?? "";
+    } catch (error) {
+      lastError = error;
+      if (!isRetryableError(error) || attempt === attempts) break;
+      await sleep(backoffDelayMs(attempt, baseMs));
+    }
+  }
+
+  throw lastError;
 }
 
 /* ------------------------------------------------------------------ */
@@ -231,8 +344,9 @@ export function formatScoringError(error: unknown): string {
 
 /**
  * Puntúa las ayudas candidatas con la key del usuario.
- * Si no hay key o la IA falla (p.ej. 429 por cuota), devuelve el fallback
- * con el motivo de las reglas del matcher. Nunca lanza al dashboard.
+ * Prueba la cadena de modelos (principal + respaldos) y reintenta ante
+ * errores transitorios. Si no hay key o fallan TODOS los modelos, devuelve
+ * el fallback con el motivo de las reglas del matcher. Nunca lanza.
  */
 export async function scoreGrantsForUser(
   profile: Profile,
@@ -241,48 +355,58 @@ export async function scoreGrantsForUser(
   if (!hasAiConfigured(profile)) {
     return {
       status: "fallback",
+      kind: "no-key",
       results: buildFallbackResults(candidates),
       message: "Sin API key de Gemini configurada",
     };
   }
 
   const filtered = candidates.slice(0, getMaxGrants());
+  const models = getModels();
   if (filtered.length === 0) {
-    return { status: "ok", results: [], model: getModel() };
+    return { status: "ok", results: [], model: models[0] };
   }
 
   const genAI = new GoogleGenerativeAI(profile.geminiApiKey);
-  const model = genAI.getGenerativeModel({
-    model: getModel(),
-    systemInstruction: "Responde siempre en español. Solo JSON, sin markdown.",
-  });
+  const prompt = buildPrompt(profile, filtered);
 
-  try {
-    const result = await model.generateContent(buildPrompt(profile, filtered));
-    const raw = result.response.text() ?? "";
-    const results = parseAiResponse(raw, filtered);
+  let lastError: unknown;
 
-    if (results.length === 0) {
-      return {
-        status: "fallback",
-        results: buildFallbackResults(filtered),
-        message: "La IA no devolvió puntuaciones válidas",
-      };
+  for (const modelName of models) {
+    try {
+      const raw = await generateWithRetry(genAI, modelName, prompt);
+      const results = parseAiResponse(raw, filtered);
+
+      if (results.length === 0) {
+        return {
+          status: "fallback",
+          kind: "invalid",
+          results: buildFallbackResults(filtered),
+          message: "La IA no devolvió puntuaciones válidas",
+        };
+      }
+
+      return { status: "ok", results, model: modelName };
+    } catch (error) {
+      lastError = error;
+      // Un modelo inexistente (404) o saturado (5xx/429) se salta al
+      // siguiente. Cualquier otro error (key inválida, prompt rechazado)
+      // no mejora cambiando de modelo: se corta aquí.
+      if (!isRetryableError(error) && errorStatus(error) !== 404) break;
     }
-
-    return { status: "ok", results, model: getModel() };
-  } catch (error) {
-    const message = formatScoringError(error);
-
-    // Sin loguear la key: solo el error real, para diagnosticar.
-    console.error(
-      JSON.stringify({ event: "grant_score_error", detail: message })
-    );
-
-    return {
-      status: "fallback",
-      results: buildFallbackResults(filtered),
-      message,
-    };
   }
+
+  const message = formatScoringError(lastError);
+
+  // Sin loguear la key: solo el error real, para diagnosticar.
+  console.error(
+    JSON.stringify({ event: "grant_score_error", detail: message })
+  );
+
+  return {
+    status: "fallback",
+    kind: isRetryableError(lastError) ? "transient" : "invalid",
+    results: buildFallbackResults(filtered),
+    message,
+  };
 }

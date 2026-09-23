@@ -29,6 +29,8 @@ type DashboardData = {
   alerts: AlertDTO[];
   aiStatus: "ok" | "fallback" | null;
   aiMessage: string | null;
+  aiConfigured?: boolean;
+  aiKind?: "no-key" | "transient" | "invalid" | null;
   page?: number;
   hasMore?: boolean;
   total?: number;
@@ -67,11 +69,14 @@ function matchesTab(decision: AlertDecision, tab: TabKey): boolean {
 
 export default function DashboardPage() {
   const [state, setState] = useState<PageState>({ kind: "loading" });
+  // Cambiarlo fuerza una recarga (botón «Reintentar» del aviso de IA).
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     let mounted = true;
 
     async function load() {
+      if (mounted) setState({ kind: "loading" });
       try {
         const res = await fetch("/api/dashboard", { cache: "no-store" });
         const json = (await res.json()) as {
@@ -105,7 +110,7 @@ export default function DashboardPage() {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [reloadKey]);
 
   return (
     <>
@@ -155,13 +160,15 @@ export default function DashboardPage() {
         </section>
       )}
 
-      {state.kind === "ready" && <Ready data={state.data} />}
+      {state.kind === "ready" && (
+        <Ready data={state.data} onRetry={() => setReloadKey((k) => k + 1)} />
+      )}
       </main>
     </>
   );
 }
 
-function Ready({ data }: { data: DashboardData }) {
+function Ready({ data, onRetry }: { data: DashboardData; onRetry: () => void }) {
   const [activeTab, setActiveTab] = useState<TabKey>("pendientes");
   const [overrides, setOverrides] = useState<Record<string, AlertDecision>>({});
   const [removedIds, setRemovedIds] = useState<Set<string>>(new Set());
@@ -353,13 +360,34 @@ function Ready({ data }: { data: DashboardData }) {
       {data.aiStatus === "fallback" && (
         <div className={styles.notice}>
           <span className={styles.noticeLabel}>Encaje por reglas</span>
-          <p className={styles.noticeText}>
-            {data.aiMessage ?? "No se puntuó con IA."} Añade tu key de Gemini
-            para recibir puntuación y motivo de cada ayuda.
-          </p>
-          <a className={styles.noticeLink} href="/settings">
-            Configurar en Ajustes →
-          </a>
+          {data.aiKind === "no-key" || data.aiConfigured === false ? (
+            <>
+              <p className={styles.noticeText}>
+                Sin API key de Gemini no hay puntuación con IA. Añádela para
+                recibir la puntuación y el motivo de cada ayuda.
+              </p>
+              <a className={styles.noticeLink} href="/settings">
+                Configurar en Ajustes →
+              </a>
+            </>
+          ) : (
+            <>
+              <p className={styles.noticeText}>
+                {data.aiMessage ?? "No se pudo puntuar con IA."} Se muestran los
+                resultados por reglas; vuelve a intentarlo en unos minutos.
+              </p>
+              <button
+                type="button"
+                className={styles.noticeButton}
+                onClick={onRetry}
+              >
+                Reintentar
+              </button>
+              <a className={styles.noticeLink} href="/settings">
+                Ajustes →
+              </a>
+            </>
+          )}
         </div>
       )}
 

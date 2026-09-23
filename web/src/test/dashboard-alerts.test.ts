@@ -118,6 +118,7 @@ describe("buildAlertDTOs", () => {
 
   const fallbackScore: ScoreResult = {
     status: "fallback",
+    kind: "no-key",
     results: [
       { grantId: "a", score: 70, reason: "Encaje por reglas: Coincide con tu región" },
     ],

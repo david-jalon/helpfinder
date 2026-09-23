@@ -92,6 +92,8 @@ export async function GET(request: NextRequest) {
         alerts,
         aiStatus: fresh.aiStatus,
         aiMessage: fresh.aiMessage,
+        aiConfigured: fresh.aiConfigured,
+        aiKind: fresh.aiKind,
         page,
         hasMore,
         total,

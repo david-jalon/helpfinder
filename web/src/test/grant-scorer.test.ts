@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { GrantItem } from "@/lib/domain/grants";
 import type { Profile } from "@/lib/domain/profile";
 import type { MatchResult } from "@/lib/matching/matcher";
@@ -11,6 +11,21 @@ import {
   scoreGrantsForUser,
 } from "@/lib/ai/grant-scorer";
 import type { ScorableGrant } from "@/lib/ai/grant-scorer";
+
+// Mock del SDK de Google para controlar respuestas y errores sin red.
+const { generateContent, modelsUsed } = vi.hoisted(() => ({
+  generateContent: vi.fn(),
+  modelsUsed: [] as string[],
+}));
+
+vi.mock("@google/generative-ai", () => ({
+  GoogleGenerativeAI: class {
+    getGenerativeModel(options: { model: string }) {
+      modelsUsed.push(options.model);
+      return { generateContent };
+    }
+  },
+}));
 
 function makeProfile(overrides: Partial<Profile> = {}): Profile {
   return {
@@ -137,6 +152,16 @@ describe("formatScoringError", () => {
     expect(msg).toContain("Quota exceeded");
   });
 
+  it("503 se etiqueta como saturación temporal y conserva el detalle", () => {
+    const msg = formatScoringError({
+      status: 503,
+      statusText: "Service Unavailable",
+      message: "This model is currently experiencing high demand",
+    });
+    expect(msg).toContain("saturado temporalmente (503)");
+    expect(msg).toContain("high demand");
+  });
+
   it("otros códigos muestran el status y el detalle", () => {
     const msg = formatScoringError({
       status: 403,
@@ -164,6 +189,7 @@ describe("scoreGrantsForUser", () => {
     const result = await scoreGrantsForUser(makeProfile(), makeCandidates());
     expect(result.status).toBe("fallback");
     if (result.status === "fallback") {
+      expect(result.kind).toBe("no-key");
       expect(result.message).toContain("Sin API key");
       expect(result.results).toHaveLength(2);
       expect(result.results[0].grantId).toBe("1");
@@ -179,5 +205,106 @@ describe("scoreGrantsForUser", () => {
     if (result.status === "ok") {
       expect(result.results).toHaveLength(0);
     }
+  });
+});
+
+describe("scoreGrantsForUser (reintentos y modelos)", () => {
+  function aiError(status: number): Error & { status: number; statusText: string } {
+    return Object.assign(new Error(`[GoogleGenerativeAI Error] error ${status}`), {
+      status,
+      statusText: status === 503 ? "Service Unavailable" : "Bad Request",
+    });
+  }
+
+  function okResponse(payload: unknown) {
+    return { response: { text: () => JSON.stringify(payload) } };
+  }
+
+  beforeEach(() => {
+    generateContent.mockReset();
+    modelsUsed.length = 0;
+    vi.stubEnv("GEMINI_MODEL", "test-primary");
+    vi.stubEnv("GEMINI_FALLBACK_MODELS", "test-fallback");
+    vi.stubEnv("AI_RETRY_BASE_MS", "1");
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("reintenta ante 503 y devuelve ok si el segundo intento funciona", async () => {
+    vi.stubEnv("AI_RETRY_ATTEMPTS", "2");
+    generateContent
+      .mockRejectedValueOnce(aiError(503))
+      .mockResolvedValueOnce(
+        okResponse([{ grantId: "1", score: 90, reason: "Encaja" }])
+      );
+
+    const result = await scoreGrantsForUser(
+      makeProfile({ geminiApiKey: "AIza-test" }),
+      makeCandidates()
+    );
+
+    expect(result.status).toBe("ok");
+    if (result.status === "ok") {
+      expect(result.model).toBe("test-primary");
+      expect(result.results[0].score).toBe(90);
+    }
+    expect(generateContent).toHaveBeenCalledTimes(2);
+    expect(modelsUsed).toEqual(["test-primary"]);
+  });
+
+  it("no reintenta ante un error no transitorio (400)", async () => {
+    vi.stubEnv("AI_RETRY_ATTEMPTS", "2");
+    generateContent.mockRejectedValue(aiError(400));
+
+    const result = await scoreGrantsForUser(
+      makeProfile({ geminiApiKey: "AIza-test" }),
+      makeCandidates()
+    );
+
+    expect(result.status).toBe("fallback");
+    if (result.status === "fallback") {
+      expect(result.kind).toBe("invalid");
+    }
+    expect(generateContent).toHaveBeenCalledTimes(1);
+    expect(modelsUsed).toEqual(["test-primary"]);
+  });
+
+  it("prueba el modelo de respaldo si el principal sigue con 503", async () => {
+    vi.stubEnv("AI_RETRY_ATTEMPTS", "0");
+    generateContent.mockRejectedValue(aiError(503));
+
+    const result = await scoreGrantsForUser(
+      makeProfile({ geminiApiKey: "AIza-test" }),
+      makeCandidates()
+    );
+
+    expect(result.status).toBe("fallback");
+    if (result.status === "fallback") {
+      expect(result.kind).toBe("transient");
+      expect(result.message).toContain("503");
+    }
+    expect(modelsUsed).toEqual(["test-primary", "test-fallback"]);
+  });
+
+  it("cambia de modelo si el principal no existe (404)", async () => {
+    vi.stubEnv("AI_RETRY_ATTEMPTS", "0");
+    generateContent
+      .mockRejectedValueOnce(aiError(404))
+      .mockResolvedValueOnce(
+        okResponse([{ grantId: "1", score: 75, reason: "Vale" }])
+      );
+
+    const result = await scoreGrantsForUser(
+      makeProfile({ geminiApiKey: "AIza-test" }),
+      makeCandidates()
+    );
+
+    expect(result.status).toBe("ok");
+    if (result.status === "ok") {
+      expect(result.model).toBe("test-fallback");
+    }
+    expect(modelsUsed).toEqual(["test-primary", "test-fallback"]);
   });
 });

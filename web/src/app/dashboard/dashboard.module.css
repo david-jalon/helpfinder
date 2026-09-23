@@ -177,6 +177,21 @@
   color: var(--sello);
 }
 
+.noticeButton {
+  font-size: 0.85rem;
+  color: var(--fg);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  border-bottom: 1px solid color-mix(in srgb, var(--sello) 60%, transparent);
+  white-space: nowrap;
+}
+
+.noticeButton:hover {
+  color: var(--sello);
+}
+
 /* ── secciones ── */
 
 .section {
