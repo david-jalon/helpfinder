@@ -55,10 +55,14 @@ export async function proxy(request: NextRequest) {
     pathname.startsWith("/onboarding") ||
     pathname.startsWith("/settings") ||
     pathname.startsWith("/guia") ||
+    pathname.startsWith("/reset-password") ||
     pathname.startsWith("/api/profile") ||
     pathname.startsWith("/api/dashboard") ||
     pathname.startsWith("/api/alerts");
-  const isAuthPage = pathname === "/login" || pathname === "/register";
+  const isAuthPage =
+    pathname === "/login" ||
+    pathname === "/register" ||
+    pathname === "/forgot-password";
 
   // Sin sesión en una ruta privada → a /login
   if (isProtected && !user) {
@@ -89,5 +93,7 @@ export const config = {
     "/api/alerts/:path*",
     "/login",
     "/register",
+    "/forgot-password",
+    "/reset-password",
   ],
 };

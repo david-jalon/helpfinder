@@ -56,9 +56,10 @@ usuario entra en su panel                 guardar la ayuda en grants_seen
 ```
 
 El cron solo descarga los datos públicos de la BDNS (gratis). La IA se ejecuta
-cuando el usuario abre su panel, con una única llamada por día. Si la cuota de
-Gemini está agotada, el panel muestra las ayudas que pasaron el matcher con el
-motivo de la regla; nunca se rompe.
+cuando el usuario abre su panel, con una única llamada por día. Si Gemini está
+saturado (429/503), se reintenta con espera creciente y se prueban modelos de
+respaldo; si aun así falla, el panel muestra las ayudas que pasaron el matcher
+con el motivo de la regla; nunca se rompe.
 
 ## Stack
 
@@ -117,6 +118,44 @@ Copia `web/.env.example` a `web/.env.local` y rellena los valores. Públicas
 
 La API key de Gemini **no** es una variable de entorno: cada usuario la
 configura en su perfil (Ajustes) y se guarda por usuario, solo para servidor.
+
+### Recuperar contraseña y confirmación de correo (Supabase)
+
+El flujo de "he olvidado mi contraseña" y la confirmación de alta pasan por el
+mismo punto: `GET /auth/confirm`. Configuración necesaria (una sola vez):
+
+1. **Authentication → URL Configuration**: pon en *Site URL* la URL de tu
+   entorno (en producción, `https://tu-dominio`; en local,
+   `http://localhost:3000`). En *Redirect URLs* añade con comodín globstar
+   (cubre la query `?next=...`; una ruta exacta NO vale porque `*` no cruza
+   `/`):
+   ```
+   http://localhost:3000/**
+   https://tu-dominio/**
+   ```
+
+**Plan gratis (por defecto).** Con el mailer integrado, Supabase no permite
+editar las plantillas de email (restricción desde junio de 2026), así que se usan
+las plantillas **por defecto**, que vuelven a `/auth/confirm` con `?code=...`
+(flujo PKCE). En este modo:
+
+- Solo funciona si el enlace se abre en el **mismo navegador** que pidió el
+  correo (PKCE depende de una cookie).
+- El mailer integrado **solo envía a direcciones del equipo** del proyecto, con
+  un límite de ~2 correos/hora. Vale para probar, no para producción.
+
+**SMTP propio (opcional, recomendado para producción).** Al configurarlo
+(Authentication → SMTP Settings; p. ej. Brevo, Resend, Mailtrap) se desbloquea
+la edición de plantillas y el envío a cualquier dirección. Entonces puedes usar
+el enlace robusto entre dispositivos:
+
+- *Reset Password*:
+  `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=recovery`
+- *Confirm signup*:
+  `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=signup`
+
+En ambos modos, `/auth/confirm` valida `next` como ruta interna (evita
+redirecciones abiertas) y decide el destino según el `type`.
 
 ## Aviso de datos
 

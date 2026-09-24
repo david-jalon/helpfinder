@@ -88,6 +88,13 @@ function LoginForm() {
           </form>
 
           <p className={styles.alt}>
+            ¿Has olvidado la contraseña?{" "}
+            <Link className={styles.altLink} href="/forgot-password">
+              Recupérala
+            </Link>
+          </p>
+
+          <p className={styles.alt}>
             ¿No tienes cuenta?{" "}
             <Link className={styles.altLink} href="/register">
               Regístrate
