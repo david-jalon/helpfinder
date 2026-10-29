@@ -39,6 +39,10 @@ function rowToProfile(row: Record<string, unknown>): Profile {
     notificationEmail: String(row.notification_email ?? ""),
     emailDigestEnabled: Boolean(row.email_digest_enabled),
     lastSeenAt: row.last_seen_at ? String(row.last_seen_at) : null,
+    lastSeenSeq:
+      row.last_seen_seq === null || row.last_seen_seq === undefined
+        ? null
+        : Number(row.last_seen_seq),
     createdAt: String(row.created_at ?? ""),
   };
 }
@@ -78,6 +82,7 @@ export async function upsertProfile(userId: string, input: Partial<Profile>) {
       email_digest_enabled: input.emailDigestEnabled,
     }),
     ...(input.lastSeenAt !== undefined && { last_seen_at: input.lastSeenAt }),
+    ...(input.lastSeenSeq !== undefined && { last_seen_seq: input.lastSeenSeq }),
   });
 
   if (error) throw error;

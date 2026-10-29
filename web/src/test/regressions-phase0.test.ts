@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { GrantItem } from "@/lib/domain/grants";
 import type { Profile } from "@/lib/domain/profile";
 import { fetchGrantEligibility } from "@/lib/bdns/detail";
-import { nextWatermark } from "@/lib/dashboard/run-alerts";
+import { nextWatermarkSeq } from "@/lib/dashboard/run-alerts";
 import { matchGrant } from "@/lib/matching/matcher";
 import { scoreGrantsForUser, type ScorableGrant } from "@/lib/ai/grant-scorer";
 import type { MatchResult } from "@/lib/matching/matcher";
@@ -54,6 +54,7 @@ function makeProfile(overrides: Partial<Profile> = {}): Profile {
     notificationEmail: "",
     emailDigestEnabled: false,
     lastSeenAt: null,
+    lastSeenSeq: null,
     createdAt: "2026-01-01",
     ...overrides,
   };
@@ -112,26 +113,27 @@ describe("Fase 0 — regresiones conocidas", () => {
     expect(result?.impactRegions).toEqual(["ES13 - Comunidad de Madrid"]);
   });
 
-  it.fails("F2: con 250 filas del mismo timestamp, las 250 se procesan en dos pasadas", () => {
+  it("F2: con 250 filas del mismo timestamp, las 250 se procesan en dos pasadas", () => {
     const sharedTimestamp = "2026-10-01T06:00:00.000Z";
     const rows = Array.from({ length: 250 }, (_, index) => ({
       id: `g${index + 1}`,
+      seq: index + 1,
       firstSeenAt: sharedTimestamp,
     }));
 
-    let watermark = "2026-09-30T00:00:00.000Z";
+    let lastSeq = 0;
     const processed: typeof rows = [];
 
-    // La app pide 200 por pasada y usa `.gt(first_seen_at, watermark)`.
+    // La app pide 200 por pasada y usa `.gt(seq, lastSeq)`.
     for (let pass = 0; pass < 2; pass += 1) {
       const batch = rows
-        .filter((row) => row.firstSeenAt > watermark)
+        .filter((row) => row.seq > lastSeq)
         .slice(0, 200);
 
       processed.push(...batch);
       if (batch.length === 0) break;
 
-      watermark = nextWatermark(watermark, batch, "2026-10-02T00:00:00.000Z");
+      lastSeq = nextWatermarkSeq(lastSeq, batch);
     }
 
     expect(processed).toHaveLength(250);

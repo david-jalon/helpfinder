@@ -24,6 +24,7 @@ function makeProfile(overrides: Partial<Profile> = {}): Profile {
     notificationEmail: "",
     emailDigestEnabled: false,
     lastSeenAt: null,
+    lastSeenSeq: null,
     createdAt: "2026-01-01",
     ...overrides,
   };

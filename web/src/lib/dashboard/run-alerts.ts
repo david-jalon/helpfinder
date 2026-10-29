@@ -36,7 +36,7 @@ import {
   type ScorableGrant,
 } from "@/lib/ai/grant-scorer";
 import {
-  getGrantsSeenSince,
+  getGrantsSeenSinceSeq,
   getRecentGrants,
   type SeenGrant,
 } from "@/lib/grants/feed";
@@ -318,25 +318,45 @@ export function getNewGrantsLimit(): number {
 }
 
 /**
- * Calcula la nueva marca de agua `last_seen_at`.
- * - Primera visita (prev null): ahora; no se revisa el histórico (sin backfill).
- * - Sin ayudas nuevas: se conserva la anterior (no se avanza en balde).
- * - Con ayudas: la fecha de la más reciente REALMENTE procesada, no "ahora".
- *   Si quedaron ayudas sin procesar por el tope, siguen contando como nuevas.
+ * Calcula el nuevo cursor `last_seen_seq`.
+ * - Primera visita sin ayudas: 0 (las futuras tendrán seq > 0).
+ * - Primera visita con ayudas: el `seq` máximo procesado (sin backfill).
+ * - Sin ayudas nuevas: se conserva el anterior.
+ * - Con ayudas: el `seq` máximo REALMENTE procesado. Si quedaron ayudas
+ *   por encima del tope, sus `seq` son mayores y se recogen en la próxima
+ *   pasada, aunque compartan `first_seen_at`.
  */
-export function nextWatermark(
-  prev: string | null,
-  processed: Pick<SeenGrant, "firstSeenAt">[],
-  nowIso: string
-): string {
-  if (prev === null) return nowIso;
-  if (processed.length === 0) return prev;
+export function nextWatermarkSeq(
+  prev: number | null,
+  processed: Pick<SeenGrant, "seq">[]
+): number {
+  if (processed.length === 0) return prev ?? 0;
 
-  let max = processed[0].firstSeenAt;
+  let max = processed[0].seq;
   for (const grant of processed) {
-    if (grant.firstSeenAt > max) max = grant.firstSeenAt;
+    if (grant.seq > max) max = grant.seq;
   }
   return max;
+}
+
+/**
+ * Calcula `last_seen_at` para mantener el valor histórico coherente con el
+ * cursor. No se usa para consultar: la fuente de verdad es `last_seen_seq`.
+ * - Sin procesadas: conserva la fecha anterior o usa `nowIso` en la primera visita.
+ * - Con procesadas: la fecha de la ayuda con `seq` máximo.
+ */
+export function nextWatermarkAt(
+  prev: string | null,
+  processed: Pick<SeenGrant, "seq" | "firstSeenAt">[],
+  nowIso: string
+): string {
+  if (processed.length === 0) return prev ?? nowIso;
+
+  let latest = processed[0];
+  for (const grant of processed) {
+    if (grant.seq > latest.seq) latest = grant;
+  }
+  return latest.firstSeenAt;
 }
 
 export async function runAlerts(profile: Profile): Promise<RunAlertsResult> {
@@ -344,13 +364,13 @@ export async function runAlerts(profile: Profile): Promise<RunAlertsResult> {
 
   // 1) Ayudas nuevas desde la última visita.
   //    - Primera visita: las más recientes (sin backfill).
-  //    - Resto: desde la marca de agua, de la más antigua a la más nueva,
-  //      para no saltarse ninguna si hay más que el tope.
-  const lastSeenAt = profile.lastSeenAt;
-  const isFirstVisit = lastSeenAt === null;
+  //    - Resto: desde el último `seq`, de menor a mayor, para no saltarse
+  //      ninguna si hay más que el tope (aunque compartan timestamp).
+  const lastSeenSeq = profile.lastSeenSeq;
+  const isFirstVisit = lastSeenSeq === null;
   const seenGrants = isFirstVisit
     ? await getRecentGrants(limit)
-    : await getGrantsSeenSince(lastSeenAt, limit);
+    : await getGrantsSeenSinceSeq(lastSeenSeq, limit);
 
   // Para mostrar, lo más reciente primero (la marca de agua avanza sobre
   // `seenGrants`, que en la visita recurrente viene en orden ascendente).
@@ -390,11 +410,18 @@ export async function runAlerts(profile: Profile): Promise<RunAlertsResult> {
   const idByGrant = new Map(inserted.map((r) => [r.grant_id, r.id]));
   const alerts = dtos.map((d) => ({ ...d, id: idByGrant.get(d.grantId) ?? "" }));
 
-  // 5) Avanzar la marca de agua SOLO hasta lo realmente procesado.
+  // 5) Avanzar el cursor SOLO hasta lo realmente procesado.
   const nowIso = new Date().toISOString();
-  const watermark = nextWatermark(profile.lastSeenAt, seenGrants, nowIso);
-  if (profile.lastSeenAt !== watermark) {
-    await upsertProfile(profile.userId, { lastSeenAt: watermark });
+  const watermarkSeq = nextWatermarkSeq(lastSeenSeq, seenGrants);
+  const watermarkAt = nextWatermarkAt(profile.lastSeenAt, seenGrants, nowIso);
+  if (
+    profile.lastSeenSeq !== watermarkSeq ||
+    profile.lastSeenAt !== watermarkAt
+  ) {
+    await upsertProfile(profile.userId, {
+      lastSeenSeq: watermarkSeq,
+      lastSeenAt: watermarkAt,
+    });
   }
 
   return {

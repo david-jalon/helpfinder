@@ -80,7 +80,9 @@ async function main() {
     grantsEmptyRegions,
     grantsEmptyBeneficiaries,
     grantsEnrichedButEmpty,
+    grantsWithoutSeq,
     profilesTotal,
+    profilesWithoutCursor,
     alertsTotal,
     grantsRows,
     alertRows,
@@ -92,7 +94,11 @@ async function main() {
     count("grants_seen", (q) =>
       q.not("enriched_at", "is", null).eq("eligibility_json->impactRegions", "[]")
     ),
+    count("grants_seen", (q) => q.is("seq", null)),
     count("profiles"),
+    count("profiles", (q) =>
+      q.not("last_seen_at", "is", null).is("last_seen_seq", null)
+    ),
     count("user_alerts"),
     fetchAll("first_seen_at", "grants_seen", { orderBy: "first_seen_at" }),
     fetchAll("bucket,decision,ai_status", "user_alerts", { orderBy: "created_at" }),
@@ -109,12 +115,14 @@ async function main() {
       emptyRegions: grantsEmptyRegions,
       emptyBeneficiaries: grantsEmptyBeneficiaries,
       enrichedButEmpty: grantsEnrichedButEmpty,
+      withoutSeq: grantsWithoutSeq,
       percentEmptyRegions:
         grantsTotal === 0
           ? 0
           : Number(((grantsEmptyRegions / grantsTotal) * 100).toFixed(1)),
     },
     profiles: profilesTotal,
+    profilesWithoutCursor,
     alerts: alertsTotal,
     alertsByState,
     topDuplicateFirstSeenAt: topTimestamps.map(([timestamp, count]) => ({
@@ -137,7 +145,9 @@ async function main() {
   console.log(`Sin región (impactRegions=[]):    ${grantsEmptyRegions} (${report.grants.percentEmptyRegions}%)`);
   console.log(`Sin beneficiarios:                ${grantsEmptyBeneficiaries}`);
   console.log(`Enriquecidas pero sin región:     ${grantsEnrichedButEmpty}`);
+  console.log(`Sin seq (migración):              ${grantsWithoutSeq}`);
   console.log(`Perfiles:                         ${profilesTotal}`);
+  console.log(`Perfiles sin cursor:              ${profilesWithoutCursor}`);
   console.log(`Alertas:                          ${alertsTotal}`);
   console.log("");
   console.log("Alertas por estado (bucket · decisión · IA):");
