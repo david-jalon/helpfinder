@@ -70,6 +70,8 @@ export type Profile = {
   notificationEmail: string;
   emailDigestEnabled: boolean;
   lastSeenAt: string | null;
+  /** Último `seq` de grants_seen procesado (cursor de la marca de agua). */
+  lastSeenSeq: number | null;
   createdAt: string;
 };
 

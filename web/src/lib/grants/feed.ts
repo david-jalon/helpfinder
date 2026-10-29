@@ -12,6 +12,8 @@ import { chunkArray } from "@/lib/domain/chunk";
 
 export type SeenGrant = {
   numConvocatoria: string;
+  /** Cursor único y creciente (columna identity de grants_seen). */
+  seq: number;
   title: string;
   organization: string | null;
   sourceUrl: string | null;
@@ -24,6 +26,7 @@ export type SeenGrant = {
 function rowToSeenGrant(row: Record<string, unknown>): SeenGrant {
   return {
     numConvocatoria: String(row.num_convocatoria),
+    seq: Number(row.seq),
     title: String(row.title ?? ""),
     organization: row.organization ? String(row.organization) : null,
     sourceUrl: row.source_url ? String(row.source_url) : null,
@@ -43,7 +46,7 @@ export async function getRecentGrants(limit = 20): Promise<SeenGrant[]> {
   const { data, error } = await supabase
     .from("grants_seen")
     .select("*")
-    .order("first_seen_at", { ascending: false })
+    .order("seq", { ascending: false })
     .limit(limit);
 
   if (error) throw error;
@@ -131,20 +134,19 @@ export async function getGrantsNeedingEnrichment(
 }
 
 /**
- * Devuelve las ayudas NUEVAS desde la última visita del usuario, de la más
+ * Devuelve las ayudas NUEVAS desde el último `seq` procesado, de la más
  * ANTIGUA a la más reciente.
  *
- * El orden ascendente es clave: al abrir el panel se procesan desde la marca
- * de agua hacia delante. Si hay más nuevas que `limit`, se procesan primero
- * las más antiguas y la marca de agua avanza solo hasta lo realmente
- * procesado, de modo que las siguientes se recogen en la próxima pasada.
- * (Antes se tomaban las `limit` más recientes y las anteriores se perdían.)
+ * El cursor es `seq`, no `first_seen_at`: todas las ayudas de un mismo cron
+ * comparten timestamp, así que una marca por fecha perdería las que quedan
+ * por encima del límite. `seq` es único y creciente, y el orden ascendente
+ * permite procesar por lotes sin saltarse ninguna.
  *
- * `sinceIso` es la marca de agua (`profiles.last_seen_at`) y NO puede ser
- * null: para la PRIMERA visita usa `getRecentGrants` (las más recientes).
+ * `lastSeq` es `profiles.last_seen_seq`. Para la PRIMERA visita se usa
+ * `getRecentGrants` (las más recientes), sin backfill.
  */
-export async function getGrantsSeenSince(
-  sinceIso: string,
+export async function getGrantsSeenSinceSeq(
+  lastSeq: number,
   limit = 50
 ): Promise<SeenGrant[]> {
   const supabase = await createClient();
@@ -152,8 +154,8 @@ export async function getGrantsSeenSince(
   const { data, error } = await supabase
     .from("grants_seen")
     .select("*")
-    .gt("first_seen_at", sinceIso)
-    .order("first_seen_at", { ascending: true })
+    .gt("seq", lastSeq)
+    .order("seq", { ascending: true })
     .limit(limit);
 
   if (error) throw error;

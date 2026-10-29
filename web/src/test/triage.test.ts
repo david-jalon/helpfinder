@@ -28,6 +28,7 @@ function makeRow(overrides: Partial<PersistedAlertRow> = {}): PersistedAlertRow 
 function makeGrant(overrides: Partial<SeenGrant> = {}): SeenGrant {
   return {
     numConvocatoria: "a",
+    seq: 1,
     title: "Ayuda a la digitalización",
     organization: "Comunidad de Madrid",
     sourceUrl: "https://example.com/a",

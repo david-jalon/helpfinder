@@ -64,6 +64,7 @@ describe("profile domain types", () => {
       notificationEmail: "",
       emailDigestEnabled: false,
       lastSeenAt: null,
+      lastSeenSeq: null,
       createdAt: "2024-01-01",
     };
     expect(profile.userId).toBe("abc-123");

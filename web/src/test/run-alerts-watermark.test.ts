@@ -1,44 +1,81 @@
 import { describe, expect, it } from "vitest";
-import { getNewGrantsLimit, nextWatermark } from "@/lib/dashboard/run-alerts";
+import {
+  getNewGrantsLimit,
+  nextWatermarkAt,
+  nextWatermarkSeq,
+} from "@/lib/dashboard/run-alerts";
 
-describe("nextWatermark", () => {
-  const now = "2026-09-21T10:00:00.000Z";
+describe("nextWatermarkSeq", () => {
+  it("en la primera visita sin ayudas empieza en 0", () => {
+    expect(nextWatermarkSeq(null, [])).toBe(0);
+  });
 
-  it("en la primera visita devuelve 'ahora' (sin backfill)", () => {
+  it("en la primera visita con ayudas usa el seq máximo procesado", () => {
     expect(
-      nextWatermark(null, [{ firstSeenAt: "2020-01-01T00:00:00.000Z" }], now)
-    ).toBe(now);
+      nextWatermarkSeq(null, [{ seq: 10 }, { seq: 42 }, { seq: 7 }])
+    ).toBe(42);
   });
 
-  it("sin ayudas nuevas conserva la marca anterior", () => {
-    const prev = "2026-09-20T00:00:00.000Z";
-    expect(nextWatermark(prev, [], now)).toBe(prev);
+  it("sin ayudas nuevas conserva el cursor anterior", () => {
+    expect(nextWatermarkSeq(42, [])).toBe(42);
   });
 
-  it("con ayudas avanza solo hasta la más reciente procesada", () => {
-    const prev = "2026-09-01T00:00:00.000Z";
-    const processed = [
-      { firstSeenAt: "2026-09-10T00:00:00.000Z" },
-      { firstSeenAt: "2026-09-15T00:00:00.000Z" },
-      { firstSeenAt: "2026-09-12T00:00:00.000Z" },
-    ];
-    expect(nextWatermark(prev, processed, now)).toBe("2026-09-15T00:00:00.000Z");
+  it("con ayudas nuevas avanza solo hasta el seq máximo procesado", () => {
+    expect(
+      nextWatermarkSeq(42, [{ seq: 43 }, { seq: 50 }, { seq: 47 }])
+    ).toBe(50);
   });
 
-  it("no salta a 'ahora' si quedaron ayudas sin procesar", () => {
-    // Simula un tope: solo se procesan 2 de las nuevas; la marca debe quedar
-    // en la más reciente procesada, no en el momento actual.
-    const prev = "2026-09-01T00:00:00.000Z";
-    const watermark = nextWatermark(
-      prev,
-      [
-        { firstSeenAt: "2026-09-02T00:00:00.000Z" },
-        { firstSeenAt: "2026-09-03T00:00:00.000Z" },
-      ],
-      now
-    );
-    expect(watermark).toBe("2026-09-03T00:00:00.000Z");
-    expect(watermark).not.toBe(now);
+  it("250 filas con el mismo timestamp se procesan en dos pasadas sin perder ninguna", () => {
+    const rows = Array.from({ length: 250 }, (_, index) => ({
+      seq: index + 1,
+      firstSeenAt: "2026-10-01T06:00:00.000Z",
+    }));
+
+    let lastSeq = 0;
+    const processed: typeof rows = [];
+
+    for (let pass = 0; pass < 2; pass += 1) {
+      const batch = rows
+        .filter((row) => row.seq > lastSeq)
+        .slice(0, 200);
+
+      processed.push(...batch);
+      if (batch.length === 0) break;
+
+      lastSeq = nextWatermarkSeq(lastSeq, batch);
+    }
+
+    expect(processed).toHaveLength(250);
+    expect(lastSeq).toBe(250);
+  });
+});
+
+describe("nextWatermarkAt", () => {
+  const now = "2026-10-02T10:00:00.000Z";
+
+  it("en la primera visita sin ayudas usa ahora", () => {
+    expect(nextWatermarkAt(null, [], now)).toBe(now);
+  });
+
+  it("sin ayudas nuevas conserva la fecha anterior", () => {
+    expect(
+      nextWatermarkAt("2026-09-01T00:00:00.000Z", [], now)
+    ).toBe("2026-09-01T00:00:00.000Z");
+  });
+
+  it("con ayudas usa la fecha de la ayuda con seq máximo", () => {
+    expect(
+      nextWatermarkAt(
+        "2026-09-01T00:00:00.000Z",
+        [
+          { seq: 10, firstSeenAt: "2026-09-10T00:00:00.000Z" },
+          { seq: 12, firstSeenAt: "2026-09-12T00:00:00.000Z" },
+          { seq: 11, firstSeenAt: "2026-09-11T00:00:00.000Z" },
+        ],
+        now
+      )
+    ).toBe("2026-09-12T00:00:00.000Z");
   });
 });
 

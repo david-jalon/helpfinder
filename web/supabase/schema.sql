@@ -22,7 +22,8 @@ create table if not exists public.profiles (
   gemini_api_key text,               -- key del propio usuario (nunca se comparte)
   notification_email text,           -- futuro email diario
   email_digest_enabled boolean default false,
-  last_seen_at timestamptz,          -- base de las alertas "nuevas desde tu visita"
+  last_seen_at timestamptz,          -- fecha de la última ayuda procesada (histórico)
+  last_seen_seq bigint,              -- cursor: último seq de grants_seen procesado
   created_at timestamptz default now()
 );
 
@@ -51,6 +52,7 @@ create policy "perfil: actualización del dueño"
 -- ────────────────────────────────────────────────────────────
 create table if not exists public.grants_seen (
   num_convocatoria text primary key, -- el ID que manda BDNS
+  seq bigint generated always as identity, -- cursor único y creciente (marca de agua)
   title text,
   organization text,
   source_url text,
@@ -124,6 +126,9 @@ create policy "alertas: borrado del dueño"
 -- ────────────────────────────────────────────────────────────
 create index if not exists idx_grants_seen_first_seen_at
   on public.grants_seen (first_seen_at desc);
+
+create unique index if not exists idx_grants_seen_seq
+  on public.grants_seen (seq);
 
 create index if not exists idx_user_alerts_user_created
   on public.user_alerts (user_id, created_at desc);
