@@ -11,7 +11,8 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "db:health": "node --env-file=.env.local scripts/db-health.mjs"
   },
   "dependencies": {
     "@google/generative-ai": "^0.21.0",

@@ -4,6 +4,7 @@ FASES.md
 PLAN.md
 REVISION-FALLOS.md
 .documentation/
+.auditoria/
 
 # Estándar para apps
 node_modules/
