@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
 import AppHeader from "@/components/app-header";
 import GrantDetailModal from "@/components/grant-detail-modal";
 import type { GrantItem } from "@/lib/domain/grants";
@@ -153,6 +154,8 @@ function Stamp({ size = 88, label, center, centerSub, className, id }: StampProp
 }
 
 export default function Home() {
+  const router = useRouter();
+
   // ── filtros (input) ──
   const [queryInput, setQueryInput] = useState("");
   const [tipoAdminInput, setTipoAdminInput] = useState("");
@@ -220,7 +223,7 @@ export default function Home() {
       });
 
       if (res.status === 401) {
-        window.location.assign("/login?next=/");
+        router.push("/login?next=/");
         return;
       }
 
