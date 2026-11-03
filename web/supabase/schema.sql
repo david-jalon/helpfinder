@@ -60,7 +60,6 @@ create table if not exists public.grants_seen (
   publication_date text,             -- fecha de publicación (DD/MM/YYYY) para inferir plazos referenciales
   first_seen_at timestamptz default now(),
   eligibility_json jsonb,            -- elegibilidad BDNS (gratis, sin IA)
-  detail_json jsonb,                 -- detalle enriquecido (cache)
   enriched_at timestamptz
 );
 
@@ -95,7 +94,6 @@ create table if not exists public.user_alerts (
   ai_status text default 'pending',  -- 'ok' | 'fallback' | 'pending'
   bucket text default 'excluded',    -- 'matched' | 'maybe' | 'excluded' (Fase 12)
   decision text,                     -- triaje: 'seguir' | 'posible' | 'denegada' | NULL = pendiente (Fase 12)
-  seen boolean default false,        -- (legacy Fase 11) sin uso en el UI actual
   created_at timestamptz default now(),
   unique (user_id, grant_id),        -- una alerta por usuario y ayuda
   constraint user_alerts_bucket_check check (bucket in ('matched', 'maybe', 'excluded')),

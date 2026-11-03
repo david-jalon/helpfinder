@@ -103,7 +103,6 @@ export function grantItemFromSeen(row: SeenGrant): GrantItem {
     title: row.title,
     organization: row.organization,
     publicationDate: row.publicationDate,
-    deadlineDate: null,
     sourceUrl: row.sourceUrl,
     beneficiaryTypes: stringArray(eligibility.beneficiaryTypes),
     sectors: stringArray(eligibility.sectors),

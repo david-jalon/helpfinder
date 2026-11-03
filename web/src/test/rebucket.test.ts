@@ -36,7 +36,6 @@ function makeSeen(
     title: "Ayuda",
     organization: null,
     publicationDate: null,
-    deadlineDate: null,
     amount: null,
     sourceUrl: null,
     beneficiaryTypes: [],

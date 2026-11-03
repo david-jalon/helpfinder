@@ -36,7 +36,6 @@ vi.mock("@/lib/dashboard/run-alerts", () => ({
     title: row.title,
     organization: null,
     publicationDate: null,
-    deadlineDate: null,
     amount: null,
     sourceUrl: null,
     beneficiaryTypes: [],

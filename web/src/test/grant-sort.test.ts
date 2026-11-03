@@ -8,7 +8,6 @@ function grant(id: string, overrides: Partial<GrantItem> = {}): GrantItem {
     title: "Ayuda",
     organization: null,
     publicationDate: null,
-    deadlineDate: null,
     amount: null,
     sourceUrl: null,
     ...overrides,

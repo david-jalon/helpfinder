@@ -54,23 +54,6 @@ export async function getRecentGrants(limit = 20): Promise<SeenGrant[]> {
 }
 
 /**
- * Devuelve una ayuda específica por su num_convocatoria.
- */
-export async function getGrantByNumConv(
-  numConvocatoria: string
-): Promise<SeenGrant | null> {
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("grants_seen")
-    .select("*")
-    .eq("num_convocatoria", numConvocatoria)
-    .maybeSingle();
-
-  if (error) throw error;
-  return data ? rowToSeenGrant(data) : null;
-}
-
-/**
  * Devuelve varias ayudas por sus num_convocatoria.
  * Se usa para completar título/organización/enlace de las alertas
  * persistidas en `user_alerts` al recargar el dashboard.
@@ -97,19 +80,6 @@ export async function getGrantsSeenByIds(ids: string[]): Promise<SeenGrant[]> {
   );
 
   return results.flat().map(rowToSeenGrant);
-}
-
-/**
- * Cuenta cuántas ayudas hay en grants_seen.
- */
-export async function countGrantsSeen(): Promise<number> {
-  const supabase = await createClient();
-  const { count, error } = await supabase
-    .from("grants_seen")
-    .select("*", { count: "exact", head: true });
-
-  if (error) throw error;
-  return count ?? 0;
 }
 
 /**

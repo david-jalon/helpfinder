@@ -108,7 +108,6 @@ function normalizeRawToGrants(
       organization: typeof obj.nivel2 === "string" ? obj.nivel2 : null,
       publicationDate:
         typeof obj.fechaRecepcion === "string" ? obj.fechaRecepcion : null,
-      deadlineDate: null,
       amount: null,
       sourceUrl,
     };
