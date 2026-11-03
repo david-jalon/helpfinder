@@ -151,6 +151,25 @@ export function mergeGroupResults(groups: GrantsSearchResult[]): GrantItem[] {
   return items;
 }
 
+/**
+ * Orden aproximado de la unión de grupos. BDNS ordena cada grupo por
+ * separado, pero al fusionar se pierde ese orden global. Si el orden pedido
+ * es por fecha de recepción (el único campo que trae el listado), se reordena
+ * aquí; para el resto se conserva el orden de los grupos (y el UI avisa).
+ */
+function orderMergedItems(
+  items: GrantItem[],
+  order: string | undefined,
+  direccion: "asc" | "desc" | undefined
+): GrantItem[] {
+  if (order !== "fechaRecepcion") return items;
+
+  const dir = direccion === "asc" ? 1 : -1;
+  return [...items].sort((a, b) =>
+    (a.publicationDate ?? "").localeCompare(b.publicationDate ?? "") * dir
+  );
+}
+
 async function fetchSearchPage(
   url: string,
   page: number,
@@ -186,7 +205,8 @@ export async function searchGrants(
   // con "todas las palabras", así la paginación y el total son los suyos.
   if (groups.length <= 1) {
     const url = buildSearchUrl(endpoint, params, groups[0]);
-    return fetchSearchPage(url, params.page, params.pageSize);
+    const result = await fetchSearchPage(url, params.page, params.pageSize);
+    return { ...result, totalIsExact: true };
   }
 
   // Con comas el usuario pide ALTERNATIVAS (OR). BDNS no sabe booleanos
@@ -209,11 +229,18 @@ export async function searchGrants(
   }
 
   const merged = mergeGroupResults(groupPages);
+  const ordered = orderMergedItems(merged, params.order, params.direccion);
   const start = (params.page - 1) * params.pageSize;
 
+  // Solo se conoce la unión COMPLETA si ningún grupo tenía más resultados
+  // que la ventana consultada. Si alguno los tenía, `merged.length` es un
+  // mínimo y el UI debe decir «Más de N», no un total inventado.
+  const totalIsExact = groupPages.every((group) => group.total <= perGroup);
+
   return {
-    items: merged.slice(start, start + params.pageSize),
+    items: ordered.slice(start, start + params.pageSize),
     total: merged.length,
+    totalIsExact,
     page: params.page,
     pageSize: params.pageSize,
   };

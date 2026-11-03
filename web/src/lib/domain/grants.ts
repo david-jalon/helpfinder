@@ -52,6 +52,12 @@ export type GrantsSearchResult = {
   total: number;
   page: number;
   pageSize: number;
+  /**
+   * false cuando `total` es solo lo que se ha podido reunir (búsquedas OR con
+   * más resultados por grupo que la ventana consultada). El UI lo usa para
+   * decir «Más de N» en vez de un total que no es real.
+   */
+  totalIsExact?: boolean;
 };
 
 export type SearchGrantsParams = {

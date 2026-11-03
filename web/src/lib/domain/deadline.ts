@@ -115,11 +115,20 @@ export function deadlineState(
     : end;
   if (!endDate) return { kind: "sin-plazo" };
 
-  endDate.setHours(23, 59, 59, 999);
-  if (endDate.getTime() < now.getTime()) return { kind: "cerrada" };
-
+  // Diferencia por DÍA NATURAL, no por horas: si el plazo acaba hoy a las
+  // 23:59, quedan 0 días (y se muestra «¡Cierra hoy!»), no 1.
+  const endDay = new Date(
+    endDate.getFullYear(),
+    endDate.getMonth(),
+    endDate.getDate()
+  );
+  const nowDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const msPerDay = 24 * 60 * 60 * 1000;
-  const daysLeft = Math.ceil((endDate.getTime() - now.getTime()) / msPerDay);
+  const daysLeft = Math.round(
+    (endDay.getTime() - nowDay.getTime()) / msPerDay
+  );
+
+  if (daysLeft < 0) return { kind: "cerrada" };
   return { kind: "abierta", daysLeft };
 }
 

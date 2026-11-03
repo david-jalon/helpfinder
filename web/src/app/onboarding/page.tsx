@@ -14,8 +14,6 @@ import styles from "./onboarding.module.css";
  * Cada paso pregunta algo concreto y el usuario elige.
  */
 
-const TOTAL_STEPS = 4;
-
 const PROFILE_OPTIONS: { value: ProfileType; label: string; icon: string }[] = [
   { value: "persona", label: "Persona particular", icon: "👤" },
   { value: "autonomo", label: "Autónomo", icon: "🔧" },
@@ -68,6 +66,23 @@ export default function OnboardingPage() {
   const [geminiApiKey, setGeminiApiKey] = useState("");
   const [error, setError] = useState("");
   const [sending, setSending] = useState(false);
+
+  // El paso de colectivos solo tiene sentido para personas particulares.
+  // Para el resto se salta: no se muestra ni se guarda.
+  const hasColectivosStep = profileType === "persona";
+  const steps = hasColectivosStep ? [1, 2, 3, 4] : [1, 3, 4];
+  const stepIndex = Math.max(0, steps.indexOf(step));
+  const isLastStep = stepIndex === steps.length - 1;
+
+  function goNext() {
+    const next = steps[stepIndex + 1];
+    if (next) setStep(next);
+  }
+
+  function goBack() {
+    const prev = steps[stepIndex - 1];
+    if (prev) setStep(prev);
+  }
 
   function toggleColectivo(c: Colectivo) {
     setColectivos((prev) =>
@@ -150,13 +165,13 @@ export default function OnboardingPage() {
 
         {/* Barra de progreso */}
         <div className={styles.progress}>
-          {Array.from({ length: TOTAL_STEPS }, (_, i) => (
+          {steps.map((stepNumber, i) => (
             <div
-              key={i}
+              key={stepNumber}
               className={`${styles.progressDot} ${
-                i + 1 === step
+                i === stepIndex
                   ? styles.progressDotActive
-                  : i + 1 < step
+                  : i < stepIndex
                   ? styles.progressDotDone
                   : ""
               }`}
@@ -182,7 +197,12 @@ export default function OnboardingPage() {
                     className={`${styles.typeOption} ${
                       profileType === opt.value ? styles.typeOptionSelected : ""
                     }`}
-                    onClick={() => setProfileType(opt.value)}
+                    onClick={() => {
+                      setProfileType(opt.value);
+                      if (opt.value !== "persona") {
+                        setColectivos([]);
+                      }
+                    }}
                   >
                     <span className={styles.typeIcon}>{opt.icon}</span>
                     {opt.label}
@@ -193,7 +213,7 @@ export default function OnboardingPage() {
           )}
 
           {/* ── Paso 2: Colectivos (solo persona) ── */}
-          {step === 2 && (
+          {step === 2 && hasColectivosStep && (
             <div className={styles.step}>
               <h2 className={styles.stepTitle}>¿Perteneces a algún colectivo?</h2>
               <p className={styles.stepDescription}>
@@ -317,22 +337,22 @@ export default function OnboardingPage() {
 
           {/* ── Botones ── */}
           <div className={styles.actions}>
-            {step > 1 && (
+            {stepIndex > 0 && (
               <button
                 type="button"
                 className={styles.back}
-                onClick={() => setStep((s) => s - 1)}
+                onClick={goBack}
               >
                 Atrás
               </button>
             )}
 
-            {step < TOTAL_STEPS ? (
+            {!isLastStep ? (
               <button
                 type="button"
                 className={styles.submit}
                 disabled={!canAdvance()}
-                onClick={() => setStep((s) => s + 1)}
+                onClick={goNext}
               >
                 Siguiente
               </button>

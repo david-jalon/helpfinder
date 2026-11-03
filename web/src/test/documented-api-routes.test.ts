@@ -10,6 +10,7 @@ import { describe, expect, it } from "vitest";
 const DOCUMENTED_ROUTE_SEGMENTS: string[][] = [
   ["grants", "search"],
   ["grants", "[id]"],
+  ["grants", "details"],
   ["catalogs", "regions"],
   ["profile"],
   ["dashboard"],

@@ -177,6 +177,8 @@ export default function Home() {
   const [regions, setRegions] = useState<RegionOption[]>([]);
   const [results, setResults] = useState<GrantItem[]>([]);
   const [total, setTotal] = useState(0);
+  /** false en búsquedas OR: `total` es un mínimo («Más de N»). */
+  const [totalIsExact, setTotalIsExact] = useState(true);
   const [state, setState] = useState<SearchState>("idle");
   const [errorMsg, setErrorMsg] = useState("");
 
@@ -322,6 +324,7 @@ export default function Home() {
         if (json.ok) {
           setResults(json.data.items);
           setTotal(json.data.total);
+          setTotalIsExact(json.data.totalIsExact !== false);
           setState("done");
         } else {
           setErrorMsg(json.error || "Error desconocido");
@@ -604,7 +607,16 @@ export default function Home() {
         {showResults && (
           <>
             <p className={styles.resultsCount}>
-              <strong>{total}</strong> resultado{total !== 1 ? "s" : ""}
+              {totalIsExact ? (
+                <>
+                  <strong>{total}</strong> resultado{total !== 1 ? "s" : ""}
+                </>
+              ) : (
+                <>
+                  Más de <strong>{total}</strong> resultados (búsqueda con
+                  alternativas)
+                </>
+              )}
             </p>
             <ul className={styles.resultsList}>
               {sortedResults.map((grant) => (

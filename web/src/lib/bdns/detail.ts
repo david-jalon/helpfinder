@@ -110,7 +110,7 @@ function rawToGrantDetail(raw: unknown, requestedNumConv: string): GrantDetail {
   return {
     id: String(numeroConvocatoria ?? obj.id ?? "unknown"),
     title: typeof obj.descripcion === "string" ? obj.descripcion : "Sin título",
-    organization: typeof obj.nivel2 === "string" ? obj.nivel2 : null,
+    organization: readOrganization(obj),
     publicationDate:
       typeof obj.fechaRecepcion === "string" ? obj.fechaRecepcion : null,
     description: typeof obj.descripcion === "string" ? obj.descripcion : null,
@@ -121,23 +121,79 @@ function rawToGrantDetail(raw: unknown, requestedNumConv: string): GrantDetail {
   };
 }
 
+/**
+ * Organismo convocante. El listado de BDNS trae `nivel2` en la raíz, pero el
+ * DETALLE lo devuelve anidado en `organo.nivel2`. Se aceptan ambas formas.
+ */
+export function readOrganization(obj: Record<string, unknown>): string | null {
+  if (typeof obj.nivel2 === "string" && obj.nivel2.trim()) {
+    return obj.nivel2.trim();
+  }
+
+  const organo = obj.organo;
+  if (organo && typeof organo === "object") {
+    const nivel2 = (organo as Record<string, unknown>).nivel2;
+    if (typeof nivel2 === "string" && nivel2.trim()) return nivel2.trim();
+  }
+
+  return null;
+}
+
 export type FetchGrantDetailResult =
   | { ok: true; data: GrantDetail }
   | { ok: false; status: number; message: string };
 
 /**
- * Detalle de convocatoria vía API BDNS (`/convocatorias?numConv=&vpd=GE`).
+ * Caché de detalles de convocatoria. El modal y el lote del dashboard piden
+ * la misma ayuda varias veces; sin caché cada apertura golpea BDNS.
+ * Solo se guardan los aciertos: un fallo se reintenta.
  */
-export async function fetchGrantDetailByNumConv(numConv: string): Promise<FetchGrantDetailResult> {
+const DEFAULT_DETAIL_TIMEOUT_MS = 8_000;
+
+function getDetailTimeoutMs(): number {
+  const raw = Number(
+    process.env.BDNS_DETAIL_TIMEOUT_MS ?? String(DEFAULT_DETAIL_TIMEOUT_MS)
+  );
+  if (!Number.isFinite(raw) || raw < 1_000) return DEFAULT_DETAIL_TIMEOUT_MS;
+  return Math.min(Math.floor(raw), 20_000);
+}
+
+/** Solo para tests: vacía la caché de detalles. */
+export function clearGrantDetailCache(): void {
+  detailCache.clear();
+}
+
+/**
+ * Detalle de convocatoria vía API BDNS (`/convocatorias?numConv=&vpd=GE`).
+ *
+ * - Caché TTL en memoria (por defecto 300 s) para no repetir la misma
+ *   llamada al abrir el modal o al pedir detalles en lote.
+ * - Timeout propio (por defecto 8 s): el modal no debe esperar los 12 s
+ *   genéricos más reintentos.
+ */
+export async function fetchGrantDetailByNumConv(
+  numConv: string,
+  options: { skipCache?: boolean } = {}
+): Promise<FetchGrantDetailResult> {
+  if (!options.skipCache) {
+    const cached = detailCache.get(numConv);
+    if (cached) return { ok: true, data: cached };
+  }
+
   const url = new URL(`${getBdnsApiBase()}/convocatorias`);
   url.searchParams.set("numConv", numConv);
   url.searchParams.set("vpd", "GE");
+
+  const timeoutMs = getDetailTimeoutMs();
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     const res = await bdnsFetch(url.toString(), {
       method: "GET",
       headers: { Accept: "application/json" },
       cache: "no-store",
+      signal: controller.signal,
     });
 
     if (res.status === 204) {
@@ -161,14 +217,26 @@ export async function fetchGrantDetailByNumConv(numConv: string): Promise<FetchG
       return { ok: false, status: 502, message: "Respuesta de detalle inválida" };
     }
 
-    return { ok: true, data: rawToGrantDetail(json, numConv) };
+    const data = rawToGrantDetail(json, numConv);
+    detailCache.set(numConv, data);
+    return { ok: true, data };
   } catch (error) {
+    if (controller.signal.aborted) {
+      return {
+        ok: false,
+        status: 504,
+        message: `BDNS no respondió en ${timeoutMs} ms`,
+      };
+    }
+
     return {
       ok: false,
       status: 502,
       message:
         error instanceof Error ? error.message : "Error consultando BDNS",
     };
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -238,6 +306,15 @@ function getDetailCacheTtlMs(): number {
  */
 const eligibilityCache = createTtlCache<EligibilityFields>({
   maxEntries: 1000,
+  ttlMs: getDetailCacheTtlMs(),
+});
+
+/**
+ * Caché de detalles completos (modal y lote del dashboard). Comparte TTL con
+ * la de elegibilidad: el detalle de una convocatoria cambia poco.
+ */
+const detailCache = createTtlCache<GrantDetail>({
+  maxEntries: 500,
   ttlMs: getDetailCacheTtlMs(),
 });
 

@@ -113,6 +113,20 @@ describe("deadlineState / deadlineView", () => {
     expect(deadlineView(state).label).toMatch(/Cierra en/);
   });
 
+  it("fin HOY → «¡Cierra hoy!» (día natural, no horas)", () => {
+    // A las 12:00 del último día quedan horas, pero 0 días naturales.
+    const state = deadlineState("10/07/2026", false, now);
+    expect(state.kind).toBe("abierta");
+    expect(state.kind === "abierta" && state.daysLeft).toBe(0);
+    expect(deadlineView(state).label).toBe("¡Cierra hoy!");
+  });
+
+  it("fin mañana → 1 día", () => {
+    const state = deadlineState("11/07/2026", false, now);
+    expect(state.kind === "abierta" && state.daysLeft).toBe(1);
+    expect(deadlineView(state).label).toBe("Cierra en 1 día");
+  });
+
   it("fin en el pasado → cerrada", () => {
     const state = deadlineState("01/07/2026", false, now);
     expect(state.kind).toBe("cerrada");
