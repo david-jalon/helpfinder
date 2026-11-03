@@ -7,6 +7,7 @@ import {
 } from "@/lib/db";
 import { getGrantsSeenByIds } from "@/lib/grants/feed";
 import { grantItemFromSeen } from "@/lib/dashboard/run-alerts";
+import { internalErrorResponse } from "@/lib/http/server-errors";
 import {
   hasAiConfigured,
   scoreGrantsForUser,
@@ -136,12 +137,6 @@ export async function POST() {
       },
     });
   } catch (error) {
-    return NextResponse.json(
-      {
-        ok: false,
-        error: error instanceof Error ? error.message : "Error interno",
-      },
-      { status: 500 }
-    );
+    return internalErrorResponse("ai_retry_error", error);
   }
 }

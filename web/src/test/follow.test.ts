@@ -73,7 +73,10 @@ describe("resolveFollowGrant (validación contra BDNS)", () => {
   };
 
   it("SIEMPRE regenera la URL desde el id (ignora la del cliente)", () => {
-    const grant = resolveFollowGrant(validated, null);
+    const grant = resolveFollowGrant(validated, {
+      title: "Título oficial",
+      organization: "Organismo oficial",
+    });
 
     expect(grant.sourceUrl).toBe(
       "https://www.infosubvenciones.es/bdnstrans/GE/es/convocatoria/780021"
@@ -92,14 +95,14 @@ describe("resolveFollowGrant (validación contra BDNS)", () => {
     expect(grant.id).toBe("780021");
   });
 
-  it("usa los datos del cliente si BDNS no trae título/organismo", () => {
+  it("NO usa título ni organismo del cliente si BDNS no los trae", () => {
     const grant = resolveFollowGrant(validated, {
       title: "",
       organization: null,
     });
 
-    expect(grant.title).toBe("Título del cliente");
-    expect(grant.organization).toBe("Organismo del cliente");
+    expect(grant.title).toBe("Convocatoria 780021");
+    expect(grant.organization).toBeNull();
   });
 });
 

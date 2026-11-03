@@ -47,24 +47,35 @@ export async function POST(request: Request) {
       );
     }
 
-    // Validar el id contra BDNS y quedarnos con SUS datos. Si BDNS no
-    // responde, seguimos con los del cliente, pero la URL se regenera
-    // siempre desde el id (nunca se guarda una URL arbitraria).
-    let authoritative = null;
-    try {
-      const detail = await fetchGrantDetailByNumConv(parsed.grant.id);
-      if (detail.ok) authoritative = detail.data;
-    } catch {
-      // Sin detalle: se usan los datos del cliente.
+    // Exigimos el detalle autoritativo de BDNS. Si no se puede leer, NO
+    // guardamos nada: el cliente no es una fuente fiable de título/organismo
+    // y podría inyectar datos falsos en la caché compartida.
+    const detail = await fetchGrantDetailByNumConv(parsed.grant.id);
+    if (!detail.ok) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            "No se pudo verificar la convocatoria en BDNS. Inténtalo de nuevo.",
+        },
+        { status: 502 }
+      );
     }
 
-    const grant = resolveFollowGrant(parsed.grant, authoritative);
+    const grant = resolveFollowGrant(parsed.grant, detail.data);
     await followGrantForUser(user.id, grant);
 
     return NextResponse.json({ ok: true, grantId: grant.id });
   } catch (error) {
+    console.error(
+      JSON.stringify({
+        event: "follow_error",
+        detail: error instanceof Error ? error.message : "unknown",
+      })
+    );
+
     return NextResponse.json(
-      { ok: false, error: error instanceof Error ? error.message : "Error interno" },
+      { ok: false, error: "Error interno. Inténtalo de nuevo." },
       { status: 500 }
     );
   }

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { fetchCcaaRegionOptions } from "@/lib/bdns/regions";
+import { upstreamErrorResponse } from "@/lib/http/server-errors";
 
 export const runtime = "nodejs";
 
@@ -14,12 +15,6 @@ export async function GET() {
     }
     return NextResponse.json({ ok: true, data: result.data });
   } catch (error) {
-    return NextResponse.json(
-      {
-        ok: false,
-        error: error instanceof Error ? error.message : "Error interno",
-      },
-      { status: 500 }
-    );
+    return upstreamErrorResponse("catalogs_regions_error", error);
   }
 }

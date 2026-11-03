@@ -124,6 +124,30 @@ describe("PUT /api/profile (API key)", () => {
 
     expect(res.status).toBe(400);
   });
+
+  it("responde 400 con JSON malformado", async () => {
+    const res = await PUT(
+      new Request("http://localhost/api/profile", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: "no-es-json",
+      })
+    );
+
+    expect(res.status).toBe(400);
+  });
+
+  it("responde 400 si el cuerpo es null", async () => {
+    const res = await PUT(
+      new Request("http://localhost/api/profile", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: "null",
+      })
+    );
+
+    expect(res.status).toBe(400);
+  });
 });
 
 describe("PUT /api/profile (validación de entrada)", () => {

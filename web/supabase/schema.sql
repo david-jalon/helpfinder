@@ -41,7 +41,8 @@ create policy "perfil: inserción del dueño"
 
 create policy "perfil: actualización del dueño"
   on public.profiles for update
-  using (auth.uid() = user_id);
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
 
 -- ────────────────────────────────────────────────────────────
 -- 2) grants_seen — ayudas BDNS ya detectadas (dato público)
@@ -113,7 +114,8 @@ create policy "alertas: inserción del dueño"
 
 create policy "alertas: actualización del dueño"
   on public.user_alerts for update
-  using (auth.uid() = user_id);
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
 
 create policy "alertas: borrado del dueño"
   on public.user_alerts for delete
