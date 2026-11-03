@@ -65,4 +65,39 @@ describe("enrichGrantsWithEligibility", () => {
     expect(succeeded.size).toBe(5);
     expect([...succeeded].sort()).toEqual(["1", "3", "5", "7", "9"]);
   });
+
+  it("no marca stoppedEarly si termina todo", async () => {
+    const items: EnrichableGrant[] = [{ id: "1" }, { id: "2" }];
+
+    const { stoppedEarly } = await enrichGrantsWithEligibility(items, 1, async () =>
+      fields()
+    );
+
+    expect(stoppedEarly).toBe(false);
+  });
+
+  it("deja de coger ayudas cuando se agota el presupuesto", async () => {
+    // 500 ayudas simuladas: el cron no debe intentarlas todas si no hay tiempo.
+    const items: EnrichableGrant[] = Array.from({ length: 500 }, (_, i) => ({
+      id: String(i + 1),
+    }));
+    let fetched = 0;
+
+    const { succeeded, stoppedEarly } = await enrichGrantsWithEligibility(
+      items,
+      1,
+      async () => {
+        fetched++;
+        return fields();
+      },
+      () => fetched >= 10
+    );
+
+    expect(stoppedEarly).toBe(true);
+    expect(fetched).toBe(10);
+    expect(succeeded.size).toBe(10);
+    // Las que no se intentaron quedan sin datos: el cron las guardará como
+    // pendientes (`enriched_at = null`) y las retomará mañana.
+    expect(items[10].impactRegions).toBeUndefined();
+  });
 });
