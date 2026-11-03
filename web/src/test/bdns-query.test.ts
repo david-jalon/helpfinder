@@ -16,7 +16,6 @@ function grant(id: string): GrantItem {
     title: `Ayuda ${id}`,
     organization: null,
     publicationDate: null,
-    deadlineDate: null,
     amount: null,
     sourceUrl: null,
   };

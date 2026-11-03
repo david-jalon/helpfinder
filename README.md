@@ -56,10 +56,11 @@ usuario entra en su panel                 guardar la ayuda en grants_seen
 ```
 
 El cron solo descarga los datos públicos de la BDNS (gratis). La IA se ejecuta
-cuando el usuario abre su panel, con una única llamada por día. Si Gemini está
-saturado (429/503), se reintenta con espera creciente y se prueban modelos de
-respaldo; si aun así falla, el panel muestra las ayudas que pasaron el matcher
-con el motivo de la regla; nunca se rompe.
+cuando el usuario abre su panel, en lotes de 10 ayudas (máximo 3 llamadas por
+apertura). Si Gemini está saturado (429/503), se reintenta con espera creciente
+y se prueban modelos de respaldo; si aun así falla, el panel muestra las ayudas
+que pasaron el matcher con el motivo de la regla; nunca se rompe. Las alertas
+que quedan `pending` o en `fallback` se pueden reintentar desde el propio panel.
 
 ## Stack
 
@@ -76,48 +77,84 @@ Todo en planes gratuitos, sin coste de mantenimiento.
 ```
 helpfinder/
 ├─ README.md
+├─ AGENT.md               reglas de trabajo del proyecto
+├─ FASES.md               fases de construcción y aprendizajes
+├─ .github/workflows/     CI (lint + tipos + tests + build)
 └─ web/
-   ├─ src/lib/domain/      tipos de dominio (grants, profile, alert-filters,
-   │                       deadline, reltext-date)
+   ├─ src/lib/domain/      tipos de dominio (grants, profile, deadline, reltext-date, chunk)
    ├─ src/lib/bdns/        cliente de la API BDNS, detalle, regiones, urls, cache
    ├─ src/lib/matching/    matcher determinista (matched/maybe/excluded)
-   ├─ src/lib/ai/          puntuación con Gemini (1 llamada batch por usuario)
-   ├─ src/lib/grants/      scan diario, feed y sort de ayudas nuevas
+   ├─ src/lib/ai/          puntuación con Gemini (lotes de 10, máximo 3 por apertura)
+   ├─ src/lib/grants/      scan diario, feed, escritura y backfill de enriquecimiento
    ├─ src/lib/dashboard/   diario de decisiones (triage, follow, run-alerts)
-   ├─ src/lib/supabase/    client / server / actions de Supabase
-   ├─ src/lib/db.ts        conexión a Supabase y auto-creación de tablas
-   ├─ src/components/      componentes de interfaz (modal de detalle, header…)
+   ├─ src/lib/cron/        autorización y presupuesto de tiempo del cron
+   ├─ src/lib/observability/ métricas, historial de cron y salud (/api/health)
+   ├─ src/lib/http/        errores genéricos y lectura de JSON
+   ├─ src/lib/supabase/    client / server / admin / actions de Supabase
+   ├─ src/lib/db.ts        consultas a Supabase (perfiles y alertas)
+   ├─ src/components/      interfaz (modal de detalle, header, foco de diálogos…)
    ├─ src/app/             páginas y rutas API (BFF)
-   │  ├─ api/grants/       search (buscador paginado) y [id] (detalle)
-   │  ├─ api/dashboard/    diario del panel
+   │  ├─ api/grants/       search, [id] (detalle) y details (lote)
+   │  ├─ api/dashboard/    POST abre el panel; GET lee una página
    │  ├─ api/alerts/       triaje y borrado de alertas
    │  ├─ api/follow/       «Seguir» desde la landing
-   │  ├─ api/cron/daily/   registro diario
-   │  └─ api/catalogs/     catálogos (regiones)
+   │  ├─ api/cron/         daily (registro diario) y enrich (backfill manual)
+   │  ├─ api/catalogs/     catálogos (regiones)
+   │  └─ api/health/       estado protegido (CRON_SECRET)
    ├─ src/test/            tests con Vitest
    ├─ src/proxy.ts         proxy de sesión (protege rutas privadas)
    ├─ supabase/schema.sql  esquema de base de datos
+   ├─ supabase/migrations/ migraciones aplicadas al proyecto
    └─ vercel.json          cron diario
 ```
+
+## Tests y CI
+
+```sh
+cd web
+npm run test        # Vitest: 324 tests
+npx tsc --noEmit    # tipos
+npm run lint        # ESLint
+npm run build       # build de producción
+```
+
+`.github/workflows/ci.yml` ejecuta lo mismo en cada push a `main` o
+`auditoria-*` y en cada pull request.
+
+## Salud y observabilidad
+
+`GET /api/health` (protegido con `Authorization: Bearer <CRON_SECRET>`)
+devuelve el backlog de enriquecimiento, las alertas por estado de IA, las
+últimas ejecuciones del cron y contadores de 429/fallback.
+
+El cron guarda una fila por ejecución en la tabla `cron_runs`, de modo que el
+estado sobrevive a los logs efímeros de Vercel. `status: "degraded"` cuando
+queda backlog de más de 24 h o el cron lleva más de 36 h sin correr.
 
 ## Configuración
 
 Copia `web/.env.example` a `web/.env.local` y rellena los valores. Públicas
 (Supabase) y solo-servidor por separado:
 
+**Obligatorias**
+
 - `NEXT_PUBLIC_SUPABASE_URL` y `NEXT_PUBLIC_SUPABASE_ANON_KEY` — proyecto
   Supabase (Auth + Postgres).
-- `CRON_SECRET` — protege `/api/cron/daily`; en Vercel debe coincidir con el
-  secret del Cron Job.
+- `SUPABASE_SERVICE_ROLE_KEY` — solo servidor. La usan el cron y «Seguir» para
+  escribir `grants_seen` (RLS cerrada). **Nunca** al navegador.
+- `CRON_SECRET` — protege `/api/cron/*` y `/api/health`. En Vercel debe
+  coincidir con el secret del Cron Job.
 - `BDNS_SEARCH_ENDPOINT` y `BDNS_BASE_URL` — API BDNS del Ministerio de
-  Hacienda (requeridas: sin ellas fallan el buscador y el detalle de
-  convocatoria, incluido el presupuesto).
-- Opcionales con valores por defecto: `GEMINI_MODEL`, `AI_MAX_GRANTS_PER_CALL`,
-  `CRON_SEARCH_DAYS`, `CRON_ENRICH_RETRY_LIMIT`, `AI_MAX_CALLS_PER_RUN`,
-  `AI_REQUEST_TIMEOUT_MS`, `BDNS_TIMEOUT_MS`, `BDNS_RETRIES`,
-  `BDNS_MAX_CONCURRENCY`,
-  `BDNS_MIN_INTERVAL_MS`, `BDNS_RETRY_BASE_MS`, `BDNS_RETRY_AFTER_MAX_MS`,
-  `BDNS_ENRICH_CONCURRENCY`, `BDNS_SEARCH_CACHE_TTL_SECONDS`.
+  Hacienda (sin ellas fallan el buscador y el detalle de convocatoria,
+  incluido el presupuesto).
+
+**Opcionales con valores por defecto**
+
+| Grupo | Variables |
+|---|---|
+| IA | `GEMINI_MODEL`, `GEMINI_FALLBACK_MODELS`, `AI_RETRY_ATTEMPTS`, `AI_RETRY_BASE_MS`, `AI_REQUEST_TIMEOUT_MS`, `AI_MAX_GRANTS_PER_CALL`, `AI_MAX_CALLS_PER_RUN`, `AI_MAX_NEW_GRANTS_PER_RUN` |
+| Cron | `CRON_SEARCH_DAYS`, `CRON_MAX_PAGES`, `CRON_TIME_BUDGET_MS`, `CRON_ENRICH_RETRY_LIMIT` |
+| BDNS | `BDNS_TIMEOUT_MS`, `BDNS_RETRIES`, `BDNS_MAX_CONCURRENCY`, `BDNS_MIN_INTERVAL_MS`, `BDNS_RETRY_BASE_MS`, `BDNS_RETRY_AFTER_MAX_MS`, `BDNS_ENRICH_CONCURRENCY`, `BDNS_ENRICH_MAX_PER_REQUEST`, `BDNS_SEARCH_CACHE_TTL_SECONDS`, `BDNS_DETAIL_CACHE_TTL_SECONDS`, `BDNS_DETAIL_TIMEOUT_MS`, `BDNS_REGIONS_CACHE_TTL_SECONDS` |
 
 La API key de Gemini **no** es una variable de entorno: cada usuario la
 configura en su perfil (Ajustes) y se guarda por usuario, solo para servidor.

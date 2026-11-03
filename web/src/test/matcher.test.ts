@@ -36,7 +36,6 @@ function makeGrant(overrides: Partial<GrantItem> = {}): GrantItem {
     title: "Ayuda a la digitalización de pymes en Madrid",
     organization: "Comunidad de Madrid",
     publicationDate: null,
-    deadlineDate: null,
     amount: null,
     sourceUrl: null,
     beneficiaryTypes: ["PYME", "Sociedades"],

@@ -88,20 +88,6 @@ export async function upsertProfile(userId: string, input: Partial<Profile>) {
   if (error) throw error;
 }
 
-// ── grants_seen (caché pública compartida) ──
-
-export async function getGrantSeen(numConvocatoria: string) {
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("grants_seen")
-    .select("*")
-    .eq("num_convocatoria", numConvocatoria)
-    .maybeSingle();
-
-  if (error) throw error;
-  return data;
-}
-
 // ── user_alerts (multi-tenant por user_id) ──
 
 /**

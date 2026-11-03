@@ -66,7 +66,6 @@ function makeGrant(overrides: Partial<GrantItem> = {}): GrantItem {
     title: "Ayuda de prueba",
     organization: "Ayuntamiento de Prueba",
     publicationDate: "2026-10-29",
-    deadlineDate: null,
     amount: null,
     sourceUrl: null,
     beneficiaryTypes: ["PERSONAS FÍSICAS"],

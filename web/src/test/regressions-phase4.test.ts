@@ -33,7 +33,6 @@ function makeGrant(overrides: Partial<GrantItem> = {}): GrantItem {
     title: "Ayuda sin datos de región",
     organization: "Organismo de prueba",
     publicationDate: null,
-    deadlineDate: null,
     amount: null,
     sourceUrl: null,
     beneficiaryTypes: ["PERSONAS FÍSICAS"],

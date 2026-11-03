@@ -8,7 +8,6 @@ export type GrantItem = {
   title: string;
   organization: string | null;
   publicationDate: string | null;
-  deadlineDate: string | null;
   amount: number | null;
   sourceUrl: string | null;
   /** Fechas del periodo de solicitud (formato DD/MM/YYYY, null si no aplica). */
