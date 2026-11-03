@@ -2,6 +2,10 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { searchGrants } from "@/lib/bdns/client";
 import { enrichGrantsWithEligibility } from "@/lib/bdns/detail";
 import { getGrantsNeedingEnrichment } from "@/lib/grants/feed";
+import {
+  countPendingEnrichment,
+  upsertGrantsSeen,
+} from "@/lib/grants/seen-write";
 
 /**
  * Motor diario (cron).
@@ -29,9 +33,14 @@ type DailyScanResult = {
   /** true si se llegó al tope de páginas y podrían quedar resultados. */
   truncated: boolean;
   newGrantsCount: number;
+  /** Ayudas nuevas enriquecidas con éxito (BDNS respondió). */
   enrichedCount: number;
+  /** Ayudas nuevas cuya llamada a BDNS falló y quedan para reintento. */
+  enrichedFailed: number;
   /** Ayudas ya conocidas que se re-enriquecieron con éxito en esta pasada. */
   retryEnrichedCount: number;
+  /** Total de filas que siguen con `enriched_at = null`. */
+  pendingBacklog: number;
   newGrants: { id: string; title: string }[];
 };
 
@@ -45,7 +54,7 @@ function getMaxPages(): number {
   return Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : DEFAULT_MAX_PAGES;
 }
 
-const DEFAULT_ENRICH_RETRY_LIMIT = 50;
+const DEFAULT_ENRICH_RETRY_LIMIT = 100;
 
 /** Cuántas ayudas sin elegibilidad se reintentan por ejecución del cron. */
 function getEnrichRetryLimit(): number {
@@ -127,67 +136,6 @@ async function getKnownIds(grantIds: string[]): Promise<Set<string>> {
   return new Set((data ?? []).map((row) => row.num_convocatoria));
 }
 
-async function upsertGrantsSeen(
-  grants: Array<{
-    id: string;
-    title: string;
-    organization: string | null;
-    sourceUrl: string | null;
-    publicationDate?: string | null;
-    beneficiaryTypes?: string[];
-    sectors?: string[];
-    impactRegions?: string[];
-    purpose?: string | null;
-    instrumentType?: string | null;
-    amount?: number | null;
-    applicationStartDate?: string | null;
-    applicationEndDate?: string | null;
-    applicationStartText?: string | null;
-    applicationEndText?: string | null;
-    openEnded?: boolean;
-  }>,
-  /**
-   * ids cuya elegibilidad se obtuvo con éxito. Solo esos reciben
-   * `enriched_at`; los demás quedan a null para reintentarse en el cron
-   * (una caída puntual de BDNS no deja la ayuda sin datos para siempre).
-   */
-  enrichedIds: Set<string> = new Set()
-): Promise<void> {
-  if (grants.length === 0) return;
-
-  const supabase = createAdminClient();
-  const nowIso = new Date().toISOString();
-
-  const rows = grants.map((g) => ({
-    num_convocatoria: g.id,
-    title: g.title,
-    organization: g.organization,
-    source_url: g.sourceUrl,
-    publication_date: g.publicationDate ?? null,
-    eligibility_json: {
-      beneficiaryTypes: g.beneficiaryTypes ?? [],
-      sectors: g.sectors ?? [],
-      impactRegions: g.impactRegions ?? [],
-      purpose: g.purpose ?? null,
-      instrumentType: g.instrumentType ?? null,
-      amount: g.amount ?? null,
-      applicationStartDate: g.applicationStartDate ?? null,
-      applicationEndDate: g.applicationEndDate ?? null,
-      applicationStartText: g.applicationStartText ?? null,
-      applicationEndText: g.applicationEndText ?? null,
-      openEnded: g.openEnded ?? false,
-    },
-    enriched_at: enrichedIds.has(g.id) ? nowIso : null,
-  }));
-
-  const { error } = await supabase.from("grants_seen").upsert(rows, {
-    onConflict: "num_convocatoria",
-    ignoreDuplicates: false,
-  });
-
-  if (error) throw error;
-}
-
 /**
  * Escaneo diario de BDNS.
  * Busca ayudas recientes, detecta las nuevas y las guarda en grants_seen.
@@ -250,8 +198,10 @@ export async function dailyScan(): Promise<DailyScanResult> {
     pagesFetched,
     truncated,
     newGrantsCount: newItems.length,
-    enrichedCount: newItems.filter((i) => i.beneficiaryTypes && i.beneficiaryTypes.length > 0).length,
+    enrichedCount: newEnriched.size,
+    enrichedFailed: newItems.length - newEnriched.size,
     retryEnrichedCount: retried,
+    pendingBacklog: await countPendingEnrichment(),
     newGrants: newItems.map((i) => ({ id: i.id, title: i.title })),
   };
 }

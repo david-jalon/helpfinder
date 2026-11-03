@@ -1,16 +1,11 @@
 import type { GrantItem, GrantsSearchResult, SearchGrantsParams } from "@/lib/domain/grants";
 import { getCachedSearch, setCachedSearch } from "./search-cache";
+import { BdnsHttpError, bdnsFetch } from "./http";
 import { buildInfosubvencionesConvocatoriaUrl } from "./urls";
 
 export type { GrantItem, GrantsSearchResult, SearchGrantsParams } from "@/lib/domain/grants";
 
 type BdnsRawResponse = unknown;
-
-function getEnvNumber(name: string, fallback: number): number {
-  const value = process.env[name];
-  const parsed = Number(value);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
-}
 
 function toBdnsDate(value?: string): string | null {
   if (!value) return null;
@@ -86,47 +81,6 @@ export function buildSearchUrl(
   return url.toString();
 }
 
-async function fetchWithRetry(
-  url: string,
-  retries: number,
-  timeoutMs: number
-): Promise<Response> {
-  let lastError: unknown;
-
-  for (let attempt = 0; attempt <= retries; attempt++) {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), timeoutMs);
-
-    try {
-      const res = await fetch(url, {
-        method: "GET",
-        signal: controller.signal,
-        headers: {
-          Accept: "application/json",
-        },
-        cache: "no-store",
-      });
-
-      clearTimeout(timeout);
-
-      if (!res.ok) {
-        if (res.status >= 500 && attempt < retries) continue;
-        throw new Error(`BDNS respondió ${res.status}`);
-      }
-
-      return res;
-    } catch (error) {
-      clearTimeout(timeout);
-      lastError = error;
-      if (attempt === retries) break;
-    }
-  }
-
-  throw lastError instanceof Error
-    ? lastError
-    : new Error("Error desconocido consultando BDNS");
-}
-
 function normalizeRawToGrants(
   raw: BdnsRawResponse,
   page: number,
@@ -199,15 +153,19 @@ export function mergeGroupResults(groups: GrantsSearchResult[]): GrantItem[] {
 
 async function fetchSearchPage(
   url: string,
-  retries: number,
-  timeoutMs: number,
   page: number,
   pageSize: number
 ): Promise<GrantsSearchResult> {
   const cached = getCachedSearch(url);
   if (cached) return cached;
 
-  const res = await fetchWithRetry(url, retries, timeoutMs);
+  const res = await bdnsFetch(url, {
+    method: "GET",
+    headers: { Accept: "application/json" },
+    cache: "no-store",
+  });
+  if (!res.ok) throw new BdnsHttpError(res.status, url);
+
   const raw = (await res.json()) as BdnsRawResponse;
   const result = normalizeRawToGrants(raw, page, pageSize);
   setCachedSearch(url, result);
@@ -222,16 +180,13 @@ export async function searchGrants(
     throw new Error("BDNS_SEARCH_ENDPOINT no está configurado");
   }
 
-  const timeoutMs = getEnvNumber("BDNS_TIMEOUT_MS", 12000);
-  const retries = getEnvNumber("BDNS_RETRIES", 2);
-
   const groups = splitQueryGroups(params.q);
 
   // Caso habitual: una frase ("bici electrica"). Una sola llamada a BDNS
   // con "todas las palabras", así la paginación y el total son los suyos.
   if (groups.length <= 1) {
     const url = buildSearchUrl(endpoint, params, groups[0]);
-    return fetchSearchPage(url, retries, timeoutMs, params.page, params.pageSize);
+    return fetchSearchPage(url, params.page, params.pageSize);
   }
 
   // Con comas el usuario pide ALTERNATIVAS (OR). BDNS no sabe booleanos
@@ -250,7 +205,7 @@ export async function searchGrants(
       pageSize: perGroup,
     };
     const url = buildSearchUrl(endpoint, groupParams, group);
-    groupPages.push(await fetchSearchPage(url, retries, timeoutMs, 1, perGroup));
+    groupPages.push(await fetchSearchPage(url, 1, perGroup));
   }
 
   const merged = mergeGroupResults(groupPages);

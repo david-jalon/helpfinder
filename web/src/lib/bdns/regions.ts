@@ -1,3 +1,4 @@
+import { bdnsFetch } from "./http";
 import { getBdnsApiBase } from "./urls";
 
 type RegionNode = {
@@ -42,28 +43,39 @@ export type FetchRegionsResult =
 export async function fetchCcaaRegionOptions(): Promise<FetchRegionsResult> {
   const url = `${getBdnsApiBase()}/regiones?vpd=GE`;
 
-  const res = await fetch(url, {
-    method: "GET",
-    headers: { Accept: "application/json" },
-    cache: "no-store",
-  });
+  try {
+    const res = await bdnsFetch(url, {
+      method: "GET",
+      headers: { Accept: "application/json" },
+      cache: "no-store",
+    });
 
-  if (!res.ok) {
+    if (!res.ok) {
+      return {
+        ok: false,
+        status: res.status,
+        message: `BDNS respondió ${res.status}`,
+      };
+    }
+
+    const json = (await res.json()) as RegionNode[];
+    if (!Array.isArray(json) || json.length === 0) {
+      return { ok: true, data: [] };
+    }
+
+    const root = json[0];
+    const children = Array.isArray(root.children)
+      ? (root.children as RegionNode[])
+      : [];
+    const ccaa = extractCcaa(children);
+
+    return { ok: true, data: ccaa };
+  } catch (error) {
     return {
       ok: false,
-      status: res.status,
-      message: `BDNS respondió ${res.status}`,
+      status: 502,
+      message:
+        error instanceof Error ? error.message : "Error consultando regiones",
     };
   }
-
-  const json = (await res.json()) as RegionNode[];
-  if (!Array.isArray(json) || json.length === 0) {
-    return { ok: true, data: [] };
-  }
-
-  const root = json[0];
-  const children = Array.isArray(root.children) ? (root.children as RegionNode[]) : [];
-  const ccaa = extractCcaa(children);
-
-  return { ok: true, data: ccaa };
 }

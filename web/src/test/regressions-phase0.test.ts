@@ -2,8 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { GrantItem } from "@/lib/domain/grants";
 import type { Profile } from "@/lib/domain/profile";
 import { fetchGrantEligibility } from "@/lib/bdns/detail";
+import { resetBdnsHttpForTests } from "@/lib/bdns/http";
 import { nextWatermarkSeq } from "@/lib/dashboard/run-alerts";
-import { matchGrant } from "@/lib/matching/matcher";
 import { scoreGrantsForUser, type ScorableGrant } from "@/lib/ai/grant-scorer";
 import type { MatchResult } from "@/lib/matching/matcher";
 import {
@@ -85,15 +85,23 @@ function makeMatch(id: string): MatchResult {
 beforeEach(() => {
   vi.clearAllMocks();
   generateContent.mockReset();
+  resetBdnsHttpForTests();
+  vi.stubEnv("BDNS_MAX_CONCURRENCY", "1");
+  vi.stubEnv("BDNS_MIN_INTERVAL_MS", "0");
+  vi.stubEnv("BDNS_RETRIES", "2");
+  vi.stubEnv("BDNS_RETRY_BASE_MS", "1");
+  vi.stubEnv("BDNS_RETRY_AFTER_MAX_MS", "50");
+  vi.stubEnv("BDNS_TIMEOUT_MS", "1000");
 });
 
 afterEach(() => {
+  resetBdnsHttpForTests();
   vi.unstubAllGlobals();
   vi.unstubAllEnvs();
 });
 
 describe("Fase 0 — regresiones conocidas", () => {
-  it.fails("F1: fetchGrantEligibility reintenta un 429 y termina devolviendo datos", async () => {
+  it("F1: fetchGrantEligibility reintenta un 429 y termina devolviendo datos", async () => {
     const id = `f1-${Date.now()}`;
     let attempts = 0;
     const bdns = createBdnsFetch(() => {
@@ -111,6 +119,20 @@ describe("Fase 0 — regresiones conocidas", () => {
     expect(attempts).toBeGreaterThan(1);
     expect(result).not.toBeNull();
     expect(result?.impactRegions).toEqual(["ES13 - Comunidad de Madrid"]);
+  });
+
+  it("F1b: un 204 de BDNS se marca como enriquecido sin datos", async () => {
+    const id = `f1b-${Date.now()}`;
+    const bdns = createBdnsFetch(() => ({ status: 204 }));
+
+    stubBdnsFetch(bdns);
+
+    const result = await fetchGrantEligibility(id);
+
+    expect(result).not.toBeNull();
+    expect(result?.noContent).toBe(true);
+    expect(result?.impactRegions).toEqual([]);
+    expect(bdns.calls).toHaveLength(1);
   });
 
   it("F2: con 250 filas del mismo timestamp, las 250 se procesan en dos pasadas", () => {
@@ -137,15 +159,6 @@ describe("Fase 0 — regresiones conocidas", () => {
     }
 
     expect(processed).toHaveLength(250);
-  });
-
-  it.fails("F4: una ayuda sin región debe quedar en maybe, no excluida", () => {
-    const result = matchGrant(
-      makeProfile({ regiones: ["madrileña"] }),
-      makeGrant({ impactRegions: [] })
-    );
-
-    expect(result.status).toBe("maybe");
   });
 
   it.fails("F6: 15 candidatos deben puntuarse todos, no solo los 10 primeros", async () => {

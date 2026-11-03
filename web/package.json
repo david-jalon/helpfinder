@@ -12,7 +12,8 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:watch": "vitest",
-    "db:health": "node --env-file=.env.local scripts/db-health.mjs"
+    "db:health": "node --env-file=.env.local scripts/db-health.mjs",
+    "backfill:eligibility": "node --env-file=.env.local scripts/backfill-eligibility.mjs"
   },
   "dependencies": {
     "@google/generative-ai": "^0.21.0",

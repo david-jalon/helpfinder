@@ -1,5 +1,6 @@
 import type { GrantDetail, GrantItem } from "@/lib/domain/grants";
 import { createTtlCache } from "@/lib/domain/ttl-cache";
+import { bdnsFetch } from "./http";
 import { buildInfosubvencionesConvocatoriaUrl, getBdnsApiBase } from "./urls";
 
 /**
@@ -132,26 +133,43 @@ export async function fetchGrantDetailByNumConv(numConv: string): Promise<FetchG
   url.searchParams.set("numConv", numConv);
   url.searchParams.set("vpd", "GE");
 
-  const res = await fetch(url.toString(), {
-    method: "GET",
-    headers: { Accept: "application/json" },
-    cache: "no-store",
-  });
+  try {
+    const res = await bdnsFetch(url.toString(), {
+      method: "GET",
+      headers: { Accept: "application/json" },
+      cache: "no-store",
+    });
 
-  if (!res.ok) {
+    if (res.status === 204) {
+      return {
+        ok: false,
+        status: 404,
+        message: "BDNS no devuelve detalle para esta convocatoria",
+      };
+    }
+
+    if (!res.ok) {
+      return {
+        ok: false,
+        status: res.status,
+        message: `BDNS respondió ${res.status}`,
+      };
+    }
+
+    const json = (await res.json()) as unknown;
+    if (!json || typeof json !== "object") {
+      return { ok: false, status: 502, message: "Respuesta de detalle inválida" };
+    }
+
+    return { ok: true, data: rawToGrantDetail(json, numConv) };
+  } catch (error) {
     return {
       ok: false,
-      status: res.status,
-      message: `BDNS respondió ${res.status}`,
+      status: 502,
+      message:
+        error instanceof Error ? error.message : "Error consultando BDNS",
     };
   }
-
-  const json = (await res.json()) as unknown;
-  if (!json || typeof json !== "object") {
-    return { ok: false, status: 502, message: "Respuesta de detalle inválida" };
-  }
-
-  return { ok: true, data: rawToGrantDetail(json, numConv) };
 }
 
 /* ------------------------------------------------------------------ */
@@ -185,7 +203,11 @@ export type EligibilityFields = Pick<
   | "applicationStartText"
   | "applicationEndText"
   | "openEnded"
-> & { amount?: number | null };
+> & {
+  amount?: number | null;
+  /** BDNS respondió 204: no hay detalle. Se marca como enriquecida sin datos. */
+  noContent?: boolean;
+};
 
 /**
  * Mínimo que necesita el enriquecimiento: un id y los campos de elegibilidad
@@ -221,7 +243,6 @@ const eligibilityCache = createTtlCache<EligibilityFields>({
 
 export async function fetchGrantEligibility(
   numConv: string,
-  timeoutMs = 8000,
 ): Promise<EligibilityFields | null> {
   const cached = eligibilityCache.get(numConv);
   if (cached) return cached;
@@ -231,17 +252,32 @@ export async function fetchGrantEligibility(
   url.searchParams.set("vpd", "GE");
 
   try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
-
-    const res = await fetch(url.toString(), {
+    const res = await bdnsFetch(url.toString(), {
       method: "GET",
       headers: { Accept: "application/json" },
       cache: "no-store",
-      signal: controller.signal,
     });
 
-    clearTimeout(timer);
+    // 204 = BDNS no tiene detalle para esta convocatoria. No es un fallo
+    // transitorio: se marca como enriquecida sin datos para no reintentarla
+    // eternamente.
+    if (res.status === 204) {
+      const fields: EligibilityFields = {
+        beneficiaryTypes: [],
+        sectors: [],
+        impactRegions: [],
+        purpose: null,
+        instrumentType: null,
+        applicationStartDate: null,
+        applicationEndDate: null,
+        applicationStartText: null,
+        applicationEndText: null,
+        openEnded: false,
+        noContent: true,
+      };
+      eligibilityCache.set(numConv, fields);
+      return fields;
+    }
 
     if (!res.ok) return null;
 
@@ -276,9 +312,15 @@ export async function fetchGrantEligibility(
  * "ya está enriquecida" de "falló y hay que reintentar". `fetchFields` es
  * inyectable para poder testear sin red.
  */
+function getEnrichConcurrency(): number {
+  const raw = Number(process.env.BDNS_ENRICH_CONCURRENCY ?? "2");
+  if (!Number.isFinite(raw) || raw < 1) return 2;
+  return Math.min(5, Math.floor(raw));
+}
+
 export async function enrichGrantsWithEligibility<T extends EnrichableGrant>(
   items: T[],
-  concurrency = 5,
+  concurrency = getEnrichConcurrency(),
   fetchFields: (id: string) => Promise<EligibilityFields | null> = fetchGrantEligibility,
 ): Promise<{ succeeded: Set<string> }> {
   let cursor = 0;
