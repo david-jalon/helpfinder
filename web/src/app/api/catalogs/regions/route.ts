@@ -13,7 +13,16 @@ export async function GET() {
         { status: 502 }
       );
     }
-    return NextResponse.json({ ok: true, data: result.data });
+
+    // La lista de CCAA cambia muy poco: se puede cachear en CDN.
+    return NextResponse.json(
+      { ok: true, data: result.data },
+      {
+        headers: {
+          "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=86400",
+        },
+      }
+    );
   } catch (error) {
     return upstreamErrorResponse("catalogs_regions_error", error);
   }

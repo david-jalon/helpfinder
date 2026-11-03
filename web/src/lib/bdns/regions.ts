@@ -37,10 +37,39 @@ export type FetchRegionsResult =
   | { ok: true; data: RegionOption[] }
   | { ok: false; status: number; message: string };
 
+const DEFAULT_REGIONS_CACHE_TTL_SECONDS = 3600;
+const MAX_REGIONS_CACHE_TTL_SECONDS = 86_400;
+
+/**
+ * Caché en memoria del árbol de regiones. Cambia muy poco (una lista de
+ * CCAA), así que no tiene sentido pedirlo a BDNS en cada carga / onboarding.
+ */
+let regionsCache: { expiresAt: number; data: RegionOption[] } | null = null;
+
+export function getRegionsCacheTtlSeconds(): number {
+  const raw = Number(
+    process.env.BDNS_REGIONS_CACHE_TTL_SECONDS ??
+      String(DEFAULT_REGIONS_CACHE_TTL_SECONDS)
+  );
+  if (!Number.isFinite(raw) || raw < 0) return DEFAULT_REGIONS_CACHE_TTL_SECONDS;
+  return Math.min(Math.floor(raw), MAX_REGIONS_CACHE_TTL_SECONDS);
+}
+
+/** Solo para tests o invalidación manual. */
+export function clearRegionsCache(): void {
+  regionsCache = null;
+}
+
 /**
  * Árbol de regiones BDNS → lista de CCAA para desplegables.
  */
 export async function fetchCcaaRegionOptions(): Promise<FetchRegionsResult> {
+  const ttlSeconds = getRegionsCacheTtlSeconds();
+
+  if (ttlSeconds > 0 && regionsCache && Date.now() < regionsCache.expiresAt) {
+    return { ok: true, data: regionsCache.data };
+  }
+
   const url = `${getBdnsApiBase()}/regiones?vpd=GE`;
 
   try {
@@ -68,6 +97,13 @@ export async function fetchCcaaRegionOptions(): Promise<FetchRegionsResult> {
       ? (root.children as RegionNode[])
       : [];
     const ccaa = extractCcaa(children);
+
+    if (ttlSeconds > 0 && ccaa.length > 0) {
+      regionsCache = {
+        expiresAt: Date.now() + ttlSeconds * 1000,
+        data: ccaa,
+      };
+    }
 
     return { ok: true, data: ccaa };
   } catch (error) {

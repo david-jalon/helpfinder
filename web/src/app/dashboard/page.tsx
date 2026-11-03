@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import AppHeader from "@/components/app-header";
 import Lightbulb from "@/components/lightbulb";
 import GrantDetailModal from "@/components/grant-detail-modal";
+import { useDialogFocus } from "@/components/use-dialog-focus";
 import { logout } from "@/lib/supabase/actions";
 import {
   buildTabSummary,
@@ -13,6 +14,8 @@ import {
   type AlertDecision,
 } from "@/lib/dashboard/triage";
 import { deadlineState, deadlineView, resolveEffectiveDeadline } from "@/lib/domain/deadline";
+import type { GrantDetail } from "@/lib/domain/grants";
+import { chunkArray } from "@/lib/domain/chunk";
 import { readJsonResponse } from "@/lib/http/read-json";
 import styles from "./dashboard.module.css";
 
@@ -86,6 +89,9 @@ export default function DashboardPage() {
       if (mounted) setState({ kind: "loading" });
       try {
         const res = await fetch("/api/dashboard", {
+          // POST = abrir el panel (genera alertas + IA). GET queda para
+          // «Cargar más», sin efectos secundarios.
+          method: "POST",
           cache: "no-store",
           signal: controller.signal,
         });
@@ -255,6 +261,62 @@ function Ready({
   const [loadingMore, setLoadingMore] = useState(false);
   const [loadMoreError, setLoadMoreError] = useState("");
 
+  // Plazos que faltan en `eligibility_json`: se piden en LOTE, no una
+  // petición por tarjeta (antes: N+1 de `Deadline`).
+  const [freshDeadlines, setFreshDeadlines] = useState<
+    Record<string, DeadlineFields | null>
+  >({});
+  const requestedDeadlineIds = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    const pending = Array.from(
+      new Set(
+        allAlerts
+          .filter((alert) => !hasDeadlineFields(alert))
+          .map((alert) => alert.grantId)
+          .filter((id) => !requestedDeadlineIds.current.has(id))
+      )
+    );
+    if (pending.length === 0) return;
+
+    for (const id of pending) requestedDeadlineIds.current.add(id);
+
+    let cancelled = false;
+
+    async function load() {
+      const found: Record<string, DeadlineFields | null> = {};
+
+      for (const chunk of chunkArray(pending, 25)) {
+        try {
+          const res = await fetch(
+            `/api/grants/details?ids=${chunk.join(",")}`,
+            { cache: "no-store" }
+          );
+          const json = (await res.json()) as {
+            ok: boolean;
+            data?: Record<string, GrantDetail | null>;
+          };
+          if (!json.ok || !json.data) continue;
+
+          for (const [id, detail] of Object.entries(json.data)) {
+            found[id] = detail ? deadlineFieldsFrom(detail) : null;
+          }
+        } catch {
+          // Sin detalle el plazo simplemente no se muestra.
+        }
+      }
+
+      if (!cancelled) {
+        setFreshDeadlines((prev) => ({ ...prev, ...found }));
+      }
+    }
+
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [allAlerts]);
+
   // La decisión visible = lo que el servidor devolvió + cambios optimistas.
   // Se descartan las alertas excluidas (beneficiario incorrecto, región
   // que no coincide o sin datos de región): no se listan ni cuentan.
@@ -312,15 +374,8 @@ function Ready({
     };
   }, []);
 
-  // Cerrar el modal de confirmación con Escape.
-  useEffect(() => {
-    if (!pendingDelete) return;
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") setPendingDelete(null);
-    }
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [pendingDelete]);
+  // Cerrar el modal de confirmación con Escape lo gestiona `useDialogFocus`
+  // dentro de `ConfirmDeleteDialog` (también atrapa el foco y lo restaura).
 
   function showToast(alert: AlertDTO) {
     if (toastTimer.current) window.clearTimeout(toastTimer.current);
@@ -502,6 +557,7 @@ function Ready({
                   <Card
                     key={alert.id}
                     alert={alert}
+                    freshDeadline={freshDeadlines[alert.grantId]}
                     onTriage={applyDecision}
                     onDelete={requestDelete}
                     onDetail={setDetailAlert}
@@ -566,6 +622,7 @@ function Ready({
                 <Card
                   key={alert.id}
                   alert={alert}
+                  freshDeadline={freshDeadlines[alert.grantId]}
                   onTriage={applyDecision}
                   onDelete={requestDelete}
                   onDetail={setDetailAlert}
@@ -647,6 +704,9 @@ function ConfirmDeleteDialog({
   onCancel: () => void;
   onConfirm: () => void;
 }) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useDialogFocus(dialogRef, onCancel);
+
   return (
     <div
       className={styles.modalOverlay}
@@ -658,6 +718,8 @@ function ConfirmDeleteDialog({
         role="dialog"
         aria-modal="true"
         aria-labelledby="confirm-delete-title"
+        ref={dialogRef}
+        tabIndex={-1}
         onClick={(event) => event.stopPropagation()}
       >
         <h3 className={styles.modalTitle} id="confirm-delete-title">
@@ -715,12 +777,14 @@ function Card({
   onTriage,
   onDelete,
   onDetail,
+  freshDeadline,
   muted = false,
 }: {
   alert: AlertDTO;
   onTriage: (alert: AlertDTO, decision: AlertDecision) => void;
   onDelete: (alert: AlertDTO) => void;
   onDetail: (alert: AlertDTO) => void;
+  freshDeadline?: DeadlineFields | null;
   muted?: boolean;
 }) {
   return (
@@ -744,7 +808,7 @@ function Card({
         <p className={styles.cardOrg}>{alert.organization}</p>
       )}
       <Regions regions={alert.impactRegions} />
-      <Deadline alert={alert} />
+      <Deadline alert={alert} fresh={freshDeadline} />
       {alert.reason && <p className={styles.cardReason}>{alert.reason}</p>}
       {!alert.reason && alert.matchReasons.length > 0 && (
         <p className={styles.cardReason}>{alert.matchReasons.join(" · ")}</p>
@@ -788,56 +852,54 @@ type DeadlineFields = {
   openEnded: boolean;
 };
 
-function Deadline({ alert }: { alert: AlertDTO }) {
-  // El plazo de las tarjetas sale de `eligibility_json`, que el cron guarda
-  // una sola vez; a veces queda incompleto. Si faltan datos, se consulta la
-  // BDNS en vivo (mismo detalle que el modal) y se muestra con fallback.
-  const hasLocal = !!(
+/** ¿La alerta ya trae datos de plazo en `eligibility_json`? */
+function hasDeadlineFields(alert: AlertDTO): boolean {
+  return Boolean(
     alert.applicationStartDate ||
-    alert.applicationEndDate ||
-    alert.applicationStartText ||
-    alert.applicationEndText ||
-    alert.openEnded
+      alert.applicationEndDate ||
+      alert.applicationStartText ||
+      alert.applicationEndText ||
+      alert.openEnded
   );
+}
 
-  const [fresh, setFresh] = useState<DeadlineFields | null>(null);
-
-  useEffect(() => {
-    if (hasLocal) return;
-
-    let mounted = true;
-    fetch(`/api/grants/${alert.grantId}`, { cache: "no-store" })
-      .then((r) => r.json())
-      .then((json) => {
-        if (!mounted || !json?.ok) return;
-        const d = json.data;
-        if (!d) return;
-        setFresh({
-          applicationStartDate: d.applicationStartDate ?? null,
-          applicationEndDate: d.applicationEndDate ?? null,
-          applicationStartText: d.applicationStartText ?? null,
-          applicationEndText: d.applicationEndText ?? null,
-          openEnded: d.openEnded === true,
-        });
-      })
-      .catch(() => {});
-
-    return () => {
-      mounted = false;
-    };
-  }, [alert.grantId, hasLocal]);
-
-  // Si no hay datos locales y el detalle fresco aún no ha llegado, no se
-  // pinta nada para evitar un plazo incompleto o parpadeos.
-  if (!hasLocal && !fresh) return null;
-
-  const fields: DeadlineFields = fresh ?? {
-    applicationStartDate: alert.applicationStartDate,
-    applicationEndDate: alert.applicationEndDate,
-    applicationStartText: alert.applicationStartText,
-    applicationEndText: alert.applicationEndText,
-    openEnded: alert.openEnded,
+function deadlineFieldsFrom(detail: Partial<GrantDetail>): DeadlineFields {
+  return {
+    applicationStartDate: detail.applicationStartDate ?? null,
+    applicationEndDate: detail.applicationEndDate ?? null,
+    applicationStartText: detail.applicationStartText ?? null,
+    applicationEndText: detail.applicationEndText ?? null,
+    openEnded: detail.openEnded === true,
   };
+}
+
+function Deadline({
+  alert,
+  fresh,
+}: {
+  alert: AlertDTO;
+  fresh?: DeadlineFields | null;
+}) {
+  // El plazo de las tarjetas sale de `eligibility_json`, que el cron guarda
+  // una sola vez; a veces queda incompleto. El dashboard pide en lote los
+  // que faltan y los pasa aquí como `fresh` (null = se intentó y falló).
+  const hasLocal = hasDeadlineFields(alert);
+
+  const fields: DeadlineFields | null =
+    fresh ??
+    (hasLocal
+      ? {
+          applicationStartDate: alert.applicationStartDate,
+          applicationEndDate: alert.applicationEndDate,
+          applicationStartText: alert.applicationStartText,
+          applicationEndText: alert.applicationEndText,
+          openEnded: alert.openEnded,
+        }
+      : null);
+
+  // Sin datos locales ni detalle todavía, no se pinta nada para evitar un
+  // plazo incompleto o parpadeos.
+  if (!fields) return null;
 
   const resolved = resolveEffectiveDeadline({
     startDate: fields.applicationStartDate,

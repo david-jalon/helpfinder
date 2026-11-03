@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { GrantDetail } from "@/lib/domain/grants";
 import { deadlineState, deadlineView, resolveEffectiveDeadline } from "@/lib/domain/deadline";
+import { useDialogFocus } from "./use-dialog-focus";
 import styles from "./grant-detail-modal.module.css";
 
 type LoadState =
@@ -30,13 +31,27 @@ export default function GrantDetailModal({
   const [state, setState] = useState<LoadState>(
     initial?.title ? { kind: "ready", grant: initial } : { kind: "loading" }
   );
+  const dialogRef = useRef<HTMLDivElement>(null);
+
+  // Foco atrapado, Escape y restauración al cerrar.
+  useDialogFocus(dialogRef, onClose);
 
   useEffect(() => {
     let mounted = true;
 
     async function load() {
       try {
-        const res = await fetch(`/api/grants/${grantId}`, { cache: "no-store" });
+        // 10 s: si BDNS no contesta, el modal muestra el error en vez de
+        // quedarse cargando indefinidamente.
+        const controller = new AbortController();
+        const timer = window.setTimeout(() => controller.abort(), 10_000);
+
+        const res = await fetch(`/api/grants/${grantId}`, {
+          cache: "no-store",
+          signal: controller.signal,
+        });
+        window.clearTimeout(timer);
+
         const json = (await res.json()) as {
           ok: boolean;
           error?: string;
@@ -47,26 +62,26 @@ export default function GrantDetailModal({
             setState({ kind: "error", message: json.error ?? "No se pudo cargar la ayuda" });
           } else {
             setState({ kind: "ready", grant: json.data });
-          }        }
-      } catch {
-        if (mounted) {
-          setState({ kind: "error", message: "No se pudo conectar con el servidor" });
+          }
         }
+      } catch (error) {
+        if (!mounted) return;
+        const aborted = error instanceof Error && error.name === "AbortError";
+        setState({
+          kind: "error",
+          message: aborted
+            ? "La ayuda tardó demasiado en cargarse. Inténtalo de nuevo."
+            : "No se pudo conectar con el servidor",
+        });
       }
     }
 
     void load();
 
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") onClose();
-    }
-    window.addEventListener("keydown", onKeyDown);
-
     return () => {
       mounted = false;
-      window.removeEventListener("keydown", onKeyDown);
     };
-  }, [grantId, onClose]);
+  }, [grantId]);
 
   const grant = state.kind === "ready" ? state.grant : initial;
 
@@ -87,6 +102,8 @@ export default function GrantDetailModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="grant-detail-title"
+        ref={dialogRef}
+        tabIndex={-1}
         onClick={(event) => event.stopPropagation()}
       >
         <button className={styles.close} type="button" onClick={onClose} aria-label="Cerrar">
