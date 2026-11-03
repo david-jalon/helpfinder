@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isCronAuthorized } from "@/lib/cron/auth";
 import { dailyScan } from "@/lib/grants/daily-scan";
 
 /**
@@ -15,20 +16,8 @@ import { dailyScan } from "@/lib/grants/daily-scan";
 
 export const runtime = "nodejs";
 
-function verifyAuth(request: NextRequest): boolean {
-  const authHeader = request.headers.get("authorization");
-  const cronSecret = process.env.CRON_SECRET;
-
-  if (!cronSecret) {
-    // Sin secret configurado: rechazar siempre (seguridad por defecto)
-    return false;
-  }
-
-  return authHeader === `Bearer ${cronSecret}`;
-}
-
 export async function GET(request: NextRequest) {
-  if (!verifyAuth(request)) {
+  if (!isCronAuthorized(request)) {
     return NextResponse.json(
       { ok: false, error: "No autorizado" },
       { status: 401 }
@@ -46,7 +35,9 @@ export async function GET(request: NextRequest) {
         truncated: result.truncated,
         newGrantsCount: result.newGrantsCount,
         enrichedCount: result.enrichedCount,
+        enrichedFailed: result.enrichedFailed,
         retryEnrichedCount: result.retryEnrichedCount,
+        pendingBacklog: result.pendingBacklog,
       })
     );
 

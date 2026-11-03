@@ -221,10 +221,10 @@ describe("grantExcludesRegion (regla dura de región)", () => {
     expect(grantExcludesRegion(profile, grant)).toBe(false);
   });
 
-  it("excluye ayudas sin regiones declaradas cuando el perfil tiene región", () => {
+  it("no excluye ayudas sin regiones declaradas: el dato es desconocido", () => {
     const profile = makeProfile({ regiones: ["asturiana"] });
     const grant = makeGrant({ impactRegions: [] });
-    expect(grantExcludesRegion(profile, grant)).toBe(true);
+    expect(grantExcludesRegion(profile, grant)).toBe(false);
   });
 });
 
@@ -300,7 +300,7 @@ describe("matchGrant (recomendación según todo el perfil)", () => {
     expect(result.status).toBe("maybe");
   });
 
-  it("excluded: ayuda sin datos de región cuando el perfil tiene región", () => {
+  it("maybe: ayuda sin datos de región cuando el perfil tiene región", () => {
     const profile = makeProfile({ profileType: "persona", regiones: ["asturiana"] });
     const grant = makeGrant({
       title: "Subvención nominativa",
@@ -310,8 +310,11 @@ describe("matchGrant (recomendación según todo el perfil)", () => {
       sectors: [],
     });
     const result = matchGrant(profile, grant);
-    expect(result.status).toBe("excluded");
-    expect(result.rule).toBe("region");
+    expect(result.status).toBe("maybe");
+    expect(result.rule).toBeNull();
+    expect(result.reasons).toContain(
+      "No declara región; conviene revisar el detalle"
+    );
   });
 
   it("matched: el colectivo da señal aunque no haya keyword", () => {

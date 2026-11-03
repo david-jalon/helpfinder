@@ -113,7 +113,9 @@ Copia `web/.env.example` a `web/.env.local` y rellena los valores. Públicas
   Hacienda (requeridas: sin ellas fallan el buscador y el detalle de
   convocatoria, incluido el presupuesto).
 - Opcionales con valores por defecto: `GEMINI_MODEL`, `AI_MAX_GRANTS_PER_CALL`,
-  `CRON_SEARCH_DAYS`, `BDNS_TIMEOUT_MS`, `BDNS_RETRIES`,
+  `CRON_SEARCH_DAYS`, `CRON_ENRICH_RETRY_LIMIT`, `BDNS_TIMEOUT_MS`,
+  `BDNS_RETRIES`, `BDNS_MAX_CONCURRENCY`, `BDNS_MIN_INTERVAL_MS`,
+  `BDNS_RETRY_BASE_MS`, `BDNS_RETRY_AFTER_MAX_MS`, `BDNS_ENRICH_CONCURRENCY`,
   `BDNS_SEARCH_CACHE_TTL_SECONDS`.
 
 La API key de Gemini **no** es una variable de entorno: cada usuario la

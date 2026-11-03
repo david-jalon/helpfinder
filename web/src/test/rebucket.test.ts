@@ -196,8 +196,8 @@ describe("rebucketPersisted", () => {
 
   it("conserva un «Seguir» desde la landing aunque el matcher lo excluya", () => {
     // Sigue desde la landing (Fase 14): grants_seen aún sin elegibilidad
-    // (eligibility_json = null) → impactRegions vacío → el matcher lo
-    // clasificaría como excluded por región. El triaje debe mandar.
+    // (eligibility_json = null) → impactRegions vacío. Desde la Fase 4 eso
+    // ya no excluye; aun así, el triaje del usuario debe mandar.
     const grant = makeSeen("1", {
       title: "Ayuda recién seguida",
       beneficiaryTypes: [],

@@ -274,13 +274,17 @@ export function isNationalScope(grant: GrantItem): boolean {
 
 /**
  * Regla DURA: la ayuda declara regiones y NINGUNA es la del perfil.
- * Se excluye si no declara región o si declara regiones que no coinciden
- * con el perfil (salvo que sea de ámbito nacional).
+ *
+ * Si la ayuda NO declara región, no se excluye: el dato es desconocido
+ * (o la ayuda es de ámbito nacional). Antes se excluía, lo que hacía
+ * desaparecer el 58 % del catálogo cuando el enriquecimiento fallaba.
+ * Ahora seguirá el flujo normal: matched si hay una señal fuerte, maybe
+ * si no la hay.
  */
 export function grantExcludesRegion(profile: Profile, grant: GrantItem): boolean {
   if (profile.regiones.length === 0) return false;
   const impactRegions = grant.impactRegions ?? [];
-  if (impactRegions.length === 0) return true;
+  if (impactRegions.length === 0) return false;
   if (isNationalScope(grant)) return false;
   return !matchesRegion(profile, grant);
 }
@@ -419,6 +423,11 @@ export function matchGrant(profile: Profile, grant: GrantItem): MatchResult {
 
   reasons.push(`La ayuda acepta tu perfil (${PROFILE_TYPE_LABEL[profile.profileType]})`);
 
+  const hasRegionData = (grant.impactRegions ?? []).length > 0;
+  if (profile.regiones.length > 0 && !hasRegionData) {
+    reasons.push("No declara región; conviene revisar el detalle");
+  }
+
   // Reglas blandas: región, keywords y colectivos.
   const regionHit = matchesRegion(profile, grant);
   if (regionHit) reasons.push("Coincide con tu región");
@@ -430,8 +439,10 @@ export function matchGrant(profile: Profile, grant: GrantItem): MatchResult {
   if (colectivoHit) reasons.push(`Coincide tu colectivo (${colectivoHit})`);
 
   // Una ayuda de ámbito nacional con beneficiario explícito también vale
-  // para ti, aunque no coincida la región.
-  const nationalScope = isNationalScope(grant);
+  // para ti, aunque no coincida la región. Si NO declara región, el dato es
+  // desconocido: no usamos esa señal para subirla a matched; se queda en
+  // «Quizás» salvo que haya keyword o colectivo.
+  const nationalScope = hasRegionData && isNationalScope(grant);
   const strongBeneficiary = hasBeneficiaryMatch(profile, grant);
   const recommendable =
     regionHit ||
