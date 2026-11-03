@@ -308,4 +308,21 @@ describe("scoreGrantsForUser (reintentos y modelos)", () => {
     }
     expect(modelsUsed).toEqual(["test-primary", "test-fallback"]);
   });
+
+  it("cae a fallback si Gemini no responde (timeout)", async () => {
+    vi.stubEnv("AI_REQUEST_TIMEOUT_MS", "20");
+    vi.stubEnv("AI_RETRY_ATTEMPTS", "0");
+    generateContent.mockImplementation(() => new Promise(() => {}));
+
+    const result = await scoreGrantsForUser(
+      makeProfile({ geminiApiKey: "AIza-test" }),
+      makeCandidates()
+    );
+
+    expect(result.status).toBe("fallback");
+    if (result.status === "fallback") {
+      expect(result.kind).toBe("transient");
+      expect(result.message).toContain("no respondió");
+    }
+  }, 1000);
 });

@@ -13,6 +13,7 @@ import {
   type AlertDecision,
 } from "@/lib/dashboard/triage";
 import { deadlineState, deadlineView, resolveEffectiveDeadline } from "@/lib/domain/deadline";
+import { readJsonResponse } from "@/lib/http/read-json";
 import styles from "./dashboard.module.css";
 
 /**
@@ -78,17 +79,22 @@ export default function DashboardPage() {
 
   useEffect(() => {
     let mounted = true;
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => controller.abort(), 60_000);
 
     async function load() {
       if (mounted) setState({ kind: "loading" });
       try {
-        const res = await fetch("/api/dashboard", { cache: "no-store" });
-        const json = (await res.json()) as {
+        const res = await fetch("/api/dashboard", {
+          cache: "no-store",
+          signal: controller.signal,
+        });
+        const json = await readJsonResponse<{
           ok: boolean;
           error?: string;
           needsProfile?: boolean;
           data: DashboardData | null;
-        };
+        }>(res);
 
         if (!res.ok || !json.ok) {
           throw new Error(json.error ?? "No se pudo cargar el panel");
@@ -101,18 +107,26 @@ export default function DashboardPage() {
 
         if (mounted) setState({ kind: "ready", data: json.data });
       } catch (err) {
-        if (mounted) {
-          setState({
-            kind: "error",
-            message: err instanceof Error ? err.message : "Error cargando el panel",
-          });
-        }
+        if (!mounted) return;
+        const aborted = err instanceof Error && err.name === "AbortError";
+        setState({
+          kind: "error",
+          message: aborted
+            ? "El panel tardó demasiado en responder. Vuelve a intentarlo."
+            : err instanceof Error
+              ? err.message
+              : "Error cargando el panel",
+        });
+      } finally {
+        window.clearTimeout(timer);
       }
     }
 
     void load();
     return () => {
       mounted = false;
+      controller.abort();
+      window.clearTimeout(timer);
     };
   }, [reloadKey]);
 
@@ -120,13 +134,19 @@ export default function DashboardPage() {
     setRetryingAi(true);
     setRetryAiError("");
 
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => controller.abort(), 60_000);
+
     try {
-      const res = await fetch("/api/dashboard/ai-retry", { method: "POST" });
-      const json = (await res.json()) as {
+      const res = await fetch("/api/dashboard/ai-retry", {
+        method: "POST",
+        signal: controller.signal,
+      });
+      const json = await readJsonResponse<{
         ok: boolean;
         error?: string;
         data?: { updated: number; pending: number };
-      };
+      }>(res);
 
       if (!res.ok || !json.ok) {
         throw new Error(json.error ?? "No se pudo reintentar la puntuación");
@@ -134,10 +154,16 @@ export default function DashboardPage() {
 
       setReloadKey((key) => key + 1);
     } catch (err) {
+      const aborted = err instanceof Error && err.name === "AbortError";
       setRetryAiError(
-        err instanceof Error ? err.message : "No se pudo reintentar la puntuación"
+        aborted
+          ? "La IA tardó demasiado en responder. Vuelve a intentarlo."
+          : err instanceof Error
+            ? err.message
+            : "No se pudo reintentar la puntuación"
       );
     } finally {
+      window.clearTimeout(timer);
       setRetryingAi(false);
     }
   }
@@ -257,11 +283,11 @@ function Ready({
       const res = await fetch(`/api/dashboard?page=${next}&limit=50`, {
         cache: "no-store",
       });
-      const json = (await res.json()) as {
+      const json = await readJsonResponse<{
         ok: boolean;
         error?: string;
         data: DashboardData | null;
-      };
+      }>(res);
 
       if (!res.ok || !json.ok || !json.data) {
         throw new Error(json.error ?? "No se pudo cargar más");
