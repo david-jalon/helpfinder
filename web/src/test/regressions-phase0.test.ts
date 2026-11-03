@@ -161,7 +161,7 @@ describe("Fase 0 — regresiones conocidas", () => {
     expect(processed).toHaveLength(250);
   });
 
-  it.fails("F6: 15 candidatos deben puntuarse todos, no solo los 10 primeros", async () => {
+  it("F6: 15 candidatos deben puntuarse todos, no solo los 10 primeros", async () => {
     const candidates: ScorableGrant[] = Array.from({ length: 15 }, (_, index) => {
       const id = String(index + 1);
       return { grant: makeGrant({ id }), match: makeMatch(id) };

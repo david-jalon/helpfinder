@@ -31,6 +31,8 @@ type DashboardData = {
   aiMessage: string | null;
   aiConfigured?: boolean;
   aiKind?: "no-key" | "transient" | "invalid" | null;
+  /** Alertas persistidas que siguen en fallback o pending. */
+  aiPendingCount?: number;
   page?: number;
   hasMore?: boolean;
   total?: number;
@@ -71,6 +73,8 @@ export default function DashboardPage() {
   const [state, setState] = useState<PageState>({ kind: "loading" });
   // Cambiarlo fuerza una recarga (botón «Reintentar» del aviso de IA).
   const [reloadKey, setReloadKey] = useState(0);
+  const [retryingAi, setRetryingAi] = useState(false);
+  const [retryAiError, setRetryAiError] = useState("");
 
   useEffect(() => {
     let mounted = true;
@@ -111,6 +115,32 @@ export default function DashboardPage() {
       mounted = false;
     };
   }, [reloadKey]);
+
+  async function retryAi() {
+    setRetryingAi(true);
+    setRetryAiError("");
+
+    try {
+      const res = await fetch("/api/dashboard/ai-retry", { method: "POST" });
+      const json = (await res.json()) as {
+        ok: boolean;
+        error?: string;
+        data?: { updated: number; pending: number };
+      };
+
+      if (!res.ok || !json.ok) {
+        throw new Error(json.error ?? "No se pudo reintentar la puntuación");
+      }
+
+      setReloadKey((key) => key + 1);
+    } catch (err) {
+      setRetryAiError(
+        err instanceof Error ? err.message : "No se pudo reintentar la puntuación"
+      );
+    } finally {
+      setRetryingAi(false);
+    }
+  }
 
   return (
     <>
@@ -161,14 +191,29 @@ export default function DashboardPage() {
       )}
 
       {state.kind === "ready" && (
-        <Ready data={state.data} onRetry={() => setReloadKey((k) => k + 1)} />
+        <Ready
+          data={state.data}
+          onRetry={retryAi}
+          retrying={retryingAi}
+          retryError={retryAiError}
+        />
       )}
       </main>
     </>
   );
 }
 
-function Ready({ data, onRetry }: { data: DashboardData; onRetry: () => void }) {
+function Ready({
+  data,
+  onRetry,
+  retrying,
+  retryError,
+}: {
+  data: DashboardData;
+  onRetry: () => void;
+  retrying: boolean;
+  retryError: string;
+}) {
   const [activeTab, setActiveTab] = useState<TabKey>("pendientes");
   const [overrides, setOverrides] = useState<Record<string, AlertDecision>>({});
   const [removedIds, setRemovedIds] = useState<Set<string>>(new Set());
@@ -315,6 +360,14 @@ function Ready({ data, onRetry }: { data: DashboardData; onRetry: () => void }) 
 
   const inTab = alerts.filter((alert) => matchesTab(alert.decision, activeTab));
 
+  const showAiNotice =
+    data.aiStatus === "fallback" || (data.aiPendingCount ?? 0) > 0;
+  const aiNoticeText =
+    data.aiMessage ??
+    (data.aiStatus === "fallback"
+      ? "No se pudo puntuar con IA."
+      : "Hay ayudas pendientes de puntuar con IA.");
+
   // «Para ti» = ayudas con señal real: matched (región, keyword o
   // colectivo, o ámbito nacional con beneficiario) + maybe que la IA
   // puntuó bien (score ≥ 50). El resto de maybe va a «Quizás te interesen».
@@ -356,10 +409,14 @@ function Ready({ data, onRetry }: { data: DashboardData; onRetry: () => void }) 
         ))}
       </nav>
 
-      {/* ── aviso de fallback (sin IA) ── */}
-      {data.aiStatus === "fallback" && (
+      {/* ── aviso de fallback o de alertas pendientes de IA ── */}
+      {showAiNotice && (
         <div className={styles.notice}>
-          <span className={styles.noticeLabel}>Encaje por reglas</span>
+          <span className={styles.noticeLabel}>
+            {data.aiStatus === "fallback"
+              ? "Encaje por reglas"
+              : "Puntuación IA pendiente"}
+          </span>
           {data.aiKind === "no-key" || data.aiConfigured === false ? (
             <>
               <p className={styles.noticeText}>
@@ -373,15 +430,21 @@ function Ready({ data, onRetry }: { data: DashboardData; onRetry: () => void }) 
           ) : (
             <>
               <p className={styles.noticeText}>
-                {data.aiMessage ?? "No se pudo puntuar con IA."} Se muestran los
-                resultados por reglas; vuelve a intentarlo en unos minutos.
+                {aiNoticeText}{" "}
+                {data.aiStatus === "fallback"
+                  ? "Se muestran los resultados por reglas; vuelve a intentarlo en unos minutos."
+                  : "Reintenta para completarlas."}
               </p>
+              {retryError && (
+                <p className={styles.noticeText}>{retryError}</p>
+              )}
               <button
                 type="button"
                 className={styles.noticeButton}
                 onClick={onRetry}
+                disabled={retrying}
               >
-                Reintentar
+                {retrying ? "Reintentando..." : "Reintentar"}
               </button>
               <a className={styles.noticeLink} href="/settings">
                 Ajustes →

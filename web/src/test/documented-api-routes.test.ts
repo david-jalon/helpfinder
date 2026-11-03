@@ -13,6 +13,7 @@ const DOCUMENTED_ROUTE_SEGMENTS: string[][] = [
   ["catalogs", "regions"],
   ["profile"],
   ["dashboard"],
+  ["dashboard", "ai-retry"],
   ["alerts", "[id]"],
   ["follow"],
   ["auth", "status"],
