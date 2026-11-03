@@ -4,7 +4,7 @@ import {
   type FollowGrantInput,
   type SeenGrantSnapshot,
 } from "@/lib/dashboard/follow";
-import type { AlertBucket } from "@/lib/dashboard/triage";
+import type { AlertBucket, PersistedAlertRow } from "@/lib/dashboard/triage";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -130,6 +130,68 @@ export async function countAlertsForCurrentUser(): Promise<number> {
 
   if (error) throw error;
   return count ?? 0;
+}
+
+/**
+ * Alertas que necesitan puntuación IA: fallback (se pudo puntuar con reglas)
+ * o pending (no se llegó a puntuar). Se usan para el botón «Reintentar».
+ */
+export async function getAlertsNeedingAi(
+  limit = 50
+): Promise<PersistedAlertRow[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("user_alerts")
+    .select("*")
+    .in("ai_status", ["fallback", "pending"])
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  if (error) throw error;
+  return (data ?? []) as PersistedAlertRow[];
+}
+
+/** Cuenta las alertas pendientes de puntuar o en fallback. */
+export async function countAlertsNeedingAi(): Promise<number> {
+  const supabase = await createClient();
+  const { count, error } = await supabase
+    .from("user_alerts")
+    .select("*", { count: "exact", head: true })
+    .in("ai_status", ["fallback", "pending"]);
+
+  if (error) throw error;
+  return count ?? 0;
+}
+
+export type AlertAiUpdate = {
+  alertId: string;
+  score: number | null;
+  reason: string | null;
+  status: "ok" | "fallback";
+};
+
+/** Guarda el resultado de una re-puntuación IA sobre alertas persistidas. */
+export async function updateAlertAiResults(
+  userId: string,
+  updates: AlertAiUpdate[]
+): Promise<void> {
+  if (updates.length === 0) return;
+
+  const supabase = await createClient();
+
+  for (const update of updates) {
+    const { error } = await supabase
+      .from("user_alerts")
+      .update({
+        score: update.score,
+        ai_reason: update.reason,
+        ai_status: update.status,
+      })
+      .eq("id", update.alertId)
+      .eq("user_id", userId);
+
+    if (error) throw error;
+  }
 }
 
 export type AlertUpsertInput = {

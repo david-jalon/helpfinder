@@ -86,6 +86,12 @@ function getMaxGrants(): number {
   return Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : 10;
 }
 
+/** Cuántos lotes de Gemini se permiten por apertura de dashboard. */
+export function getMaxCallsPerRun(): number {
+  const raw = Number(process.env.AI_MAX_CALLS_PER_RUN ?? "3");
+  return Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : 3;
+}
+
 function getRetryAttempts(): number {
   const raw = Number(process.env.AI_RETRY_ATTEMPTS ?? "2");
   return Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : 0;
@@ -342,11 +348,54 @@ async function generateWithRetry(
 /*  Función principal                                                  */
 /* ------------------------------------------------------------------ */
 
+type BatchOutcome =
+  | { ok: true; results: ScoredGrant[]; model: string }
+  | { ok: false; error: unknown; invalid: boolean };
+
+/** Puntúa un único lote probando la cadena de modelos. */
+async function scoreBatch(
+  genAI: GoogleGenerativeAI,
+  models: string[],
+  profile: Profile,
+  batch: ScorableGrant[]
+): Promise<BatchOutcome> {
+  const prompt = buildPrompt(profile, batch);
+  let lastError: unknown;
+
+  for (const modelName of models) {
+    try {
+      const raw = await generateWithRetry(genAI, modelName, prompt);
+      const results = parseAiResponse(raw, batch);
+
+      if (results.length === 0) {
+        return {
+          ok: false,
+          error: new Error("La IA no devolvió puntuaciones válidas"),
+          invalid: true,
+        };
+      }
+
+      return { ok: true, results, model: modelName };
+    } catch (error) {
+      lastError = error;
+      // Un modelo inexistente (404) o saturado (5xx/429) se salta al
+      // siguiente. Cualquier otro error (key inválida, prompt rechazado)
+      // no mejora cambiando de modelo: se corta aquí.
+      if (!isRetryableError(error) && errorStatus(error) !== 404) break;
+    }
+  }
+
+  return { ok: false, error: lastError, invalid: false };
+}
+
 /**
- * Puntúa las ayudas candidatas con la key del usuario.
- * Prueba la cadena de modelos (principal + respaldos) y reintenta ante
- * errores transitorios. Si no hay key o fallan TODOS los modelos, devuelve
- * el fallback con el motivo de las reglas del matcher. Nunca lanza.
+ * Puntúa las ayudas candidatas con la key del usuario, en lotes de
+ * `AI_MAX_GRANTS_PER_CALL`. Hace como máximo `AI_MAX_CALLS_PER_RUN` lotes
+ * por apertura; el resto queda `pending` para el endpoint de reintento.
+ *
+ * Si un lote falla, se mantienen los resultados de los lotes anteriores,
+ * se aplica fallback al lote que falló y los lotes posteriores quedan
+ * pendientes. Nunca lanza.
  */
 export async function scoreGrantsForUser(
   profile: Profile,
@@ -361,52 +410,54 @@ export async function scoreGrantsForUser(
     };
   }
 
-  const filtered = candidates.slice(0, getMaxGrants());
   const models = getModels();
-  if (filtered.length === 0) {
+  if (candidates.length === 0) {
     return { status: "ok", results: [], model: models[0] };
   }
 
-  const genAI = new GoogleGenerativeAI(profile.geminiApiKey);
-  const prompt = buildPrompt(profile, filtered);
+  const perBatch = getMaxGrants();
+  const maxBatches = getMaxCallsPerRun();
+  const batches: ScorableGrant[][] = [];
 
-  let lastError: unknown;
-
-  for (const modelName of models) {
-    try {
-      const raw = await generateWithRetry(genAI, modelName, prompt);
-      const results = parseAiResponse(raw, filtered);
-
-      if (results.length === 0) {
-        return {
-          status: "fallback",
-          kind: "invalid",
-          results: buildFallbackResults(filtered),
-          message: "La IA no devolvió puntuaciones válidas",
-        };
-      }
-
-      return { status: "ok", results, model: modelName };
-    } catch (error) {
-      lastError = error;
-      // Un modelo inexistente (404) o saturado (5xx/429) se salta al
-      // siguiente. Cualquier otro error (key inválida, prompt rechazado)
-      // no mejora cambiando de modelo: se corta aquí.
-      if (!isRetryableError(error) && errorStatus(error) !== 404) break;
-    }
+  for (
+    let start = 0;
+    start < candidates.length && batches.length < maxBatches;
+    start += perBatch
+  ) {
+    batches.push(candidates.slice(start, start + perBatch));
   }
 
-  const message = formatScoringError(lastError);
+  const genAI = new GoogleGenerativeAI(profile.geminiApiKey);
+  const results: ScoredGrant[] = [];
+  let lastModel = models[0];
 
-  // Sin loguear la key: solo el error real, para diagnosticar.
-  console.error(
-    JSON.stringify({ event: "grant_score_error", detail: message })
-  );
+  for (const batch of batches) {
+    const outcome = await scoreBatch(genAI, models, profile, batch);
 
-  return {
-    status: "fallback",
-    kind: isRetryableError(lastError) ? "transient" : "invalid",
-    results: buildFallbackResults(filtered),
-    message,
-  };
+    if (!outcome.ok) {
+      const message = outcome.invalid
+        ? "La IA no devolvió puntuaciones válidas"
+        : formatScoringError(outcome.error);
+
+      // Sin loguear la key: solo el error real, para diagnosticar.
+      console.error(
+        JSON.stringify({ event: "grant_score_error", detail: message })
+      );
+
+      return {
+        status: "fallback",
+        kind:
+          outcome.invalid || !isRetryableError(outcome.error)
+            ? "invalid"
+            : "transient",
+        results: [...results, ...buildFallbackResults(batch)],
+        message,
+      };
+    }
+
+    results.push(...outcome.results);
+    lastModel = outcome.model;
+  }
+
+  return { status: "ok", results, model: lastModel };
 }

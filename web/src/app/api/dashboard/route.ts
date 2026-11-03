@@ -4,6 +4,7 @@ import {
   getProfile,
   getAlertsForCurrentUser,
   countAlertsForCurrentUser,
+  countAlertsNeedingAi,
   updateAlertBuckets,
   deleteAlerts,
 } from "@/lib/db";
@@ -82,7 +83,24 @@ export async function GET(request: NextRequest) {
     // 2b) Las reclasificadas como excluded ya no aplican a este perfil.
     await deleteAlerts(user.id, rebucketed.deletes);
 
-    // 3) Fusión del diario (lo fresco primero; el resto de la página)
+    // 3) Estado IA real: lo fresco + lo que quedó persistido en fallback/pending.
+    const aiPendingCount = await countAlertsNeedingAi();
+    const aiStatus =
+      fresh.aiStatus ?? (aiPendingCount > 0 ? ("fallback" as const) : null);
+    const aiMessage =
+      fresh.aiMessage ??
+      (aiPendingCount > 0
+        ? `Hay ${aiPendingCount} ayudas pendientes de puntuar con IA.`
+        : null);
+    const aiKind =
+      fresh.aiKind ??
+      (aiPendingCount > 0
+        ? fresh.aiConfigured
+          ? ("transient" as const)
+          : ("no-key" as const)
+        : null);
+
+    // 4) Fusión del diario (lo fresco primero; el resto de la página)
     const alerts = mergeAlertLists(fresh.alerts, rebucketed.alerts);
     const hasMore = offset + persistedRows.length < total;
 
@@ -90,10 +108,11 @@ export async function GET(request: NextRequest) {
       ok: true,
       data: {
         alerts,
-        aiStatus: fresh.aiStatus,
-        aiMessage: fresh.aiMessage,
+        aiStatus,
+        aiMessage,
         aiConfigured: fresh.aiConfigured,
-        aiKind: fresh.aiKind,
+        aiKind,
+        aiPendingCount,
         page,
         hasMore,
         total,
