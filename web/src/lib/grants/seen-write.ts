@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { chunkArray } from "@/lib/domain/chunk";
 
 /**
  * Escritura de la caché pública `grants_seen`.
@@ -9,6 +10,9 @@ import { createAdminClient } from "@/lib/supabase/admin";
  * `enrichedIds` contiene solo los ids cuya llamada a BDNS respondió con
  * éxito. El resto se guarda con `enriched_at = null` para reintentarse.
  */
+
+/** Filas por `upsert`. Un payload mayor puede superar el límite de PostgREST. */
+const WRITE_CHUNK_SIZE = 100;
 
 export type SeenGrantWriteInput = {
   id: string;
@@ -72,10 +76,14 @@ export async function upsertGrantsSeen(
     enriched_at: enrichedIds.has(g.id) ? nowIso : null,
   }));
 
-  const { error } = await supabase.from("grants_seen").upsert(rows, {
-    onConflict: "num_convocatoria",
-    ignoreDuplicates: false,
-  });
+  // Troceado: un `upsert` de cientos de filas puede superar el tamaño máximo
+  // de petición de PostgREST. Secuencial para no saturar la base.
+  for (const chunk of chunkArray(rows, WRITE_CHUNK_SIZE)) {
+    const { error } = await supabase.from("grants_seen").upsert(chunk, {
+      onConflict: "num_convocatoria",
+      ignoreDuplicates: false,
+    });
 
-  if (error) throw error;
+    if (error) throw error;
+  }
 }

@@ -322,12 +322,20 @@ export async function enrichGrantsWithEligibility<T extends EnrichableGrant>(
   items: T[],
   concurrency = getEnrichConcurrency(),
   fetchFields: (id: string) => Promise<EligibilityFields | null> = fetchGrantEligibility,
-): Promise<{ succeeded: Set<string> }> {
+  /**
+   * Se consulta antes de empezar cada ayuda. Si devuelve true, los workers
+   * dejan de coger trabajo nuevo (lo ya pedido termina) y las ayudas
+   * restantes quedan pendientes para la siguiente ejecución. Así el cron
+   * guarda progreso en vez de morir a mitad.
+   */
+  shouldStop: () => boolean = () => false,
+): Promise<{ succeeded: Set<string>; stoppedEarly: boolean }> {
   let cursor = 0;
   const succeeded = new Set<string>();
 
   async function next(): Promise<void> {
     while (cursor < items.length) {
+      if (shouldStop()) break;
       const idx = cursor++;
       const item = items[idx];
       const fields = await fetchFields(item.id);
@@ -351,5 +359,5 @@ export async function enrichGrantsWithEligibility<T extends EnrichableGrant>(
   const workers = Array.from({ length: Math.min(concurrency, items.length) }, () => next());
   await Promise.all(workers);
 
-  return { succeeded };
+  return { succeeded, stoppedEarly: cursor < items.length };
 }

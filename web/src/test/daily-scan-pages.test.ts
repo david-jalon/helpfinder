@@ -81,4 +81,41 @@ describe("fetchAllPages", () => {
     expect(result.pagesFetched).toBe(1);
     expect(result.truncated).toBe(false);
   });
+
+  it("recorre 500 ayudas en 10 páginas sin truncar", async () => {
+    const fetcher = makeFetcher(500, 50);
+
+    const result = await fetchAllPages(fetcher, 50, 10);
+
+    expect(result.items).toHaveLength(500);
+    expect(result.pagesFetched).toBe(10);
+    expect(result.truncated).toBe(false);
+    expect(result.stopReason).toBe("complete");
+  });
+
+  it("se detiene por presupuesto antes de pedir otra página", async () => {
+    const fetcher = makeFetcher(1_000, 50);
+    let checks = 0;
+
+    // Deja pasar 2 páginas y corta en la comprobación de la 3ª.
+    const result = await fetchAllPages(fetcher, 50, 10, () => checks++ >= 2);
+
+    expect(result.pagesFetched).toBe(2);
+    expect(result.items).toHaveLength(100);
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(result.truncated).toBe(true);
+    expect(result.stopReason).toBe("time_budget");
+  });
+
+  it("distingue el tope de páginas del corte por tiempo", async () => {
+    const fetcher = vi.fn(async (page: number) => ({
+      items: Array.from({ length: 50 }, (_, i) => ({ id: `${page}-${i}` })),
+      total: 1_000,
+    }));
+
+    const result = await fetchAllPages(fetcher, 50, 3);
+
+    expect(result.truncated).toBe(true);
+    expect(result.stopReason).toBe("max_pages");
+  });
 });

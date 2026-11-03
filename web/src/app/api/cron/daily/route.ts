@@ -15,6 +15,8 @@ import { dailyScan } from "@/lib/grants/daily-scan";
  */
 
 export const runtime = "nodejs";
+/** Vercel (Hobby) permite hasta 300 s; el presupuesto interno es 250 s. */
+export const maxDuration = 300;
 
 export async function GET(request: NextRequest) {
   if (!isCronAuthorized(request)) {
@@ -33,11 +35,15 @@ export async function GET(request: NextRequest) {
         totalFetched: result.totalFetched,
         pagesFetched: result.pagesFetched,
         truncated: result.truncated,
+        stopReason: result.stopReason,
         newGrantsCount: result.newGrantsCount,
         enrichedCount: result.enrichedCount,
         enrichedFailed: result.enrichedFailed,
+        newPendingCount: result.newPendingCount,
         retryEnrichedCount: result.retryEnrichedCount,
+        retrySkipped: result.retrySkipped,
         pendingBacklog: result.pendingBacklog,
+        durationMs: result.durationMs,
       })
     );
 
