@@ -17,6 +17,10 @@ import {
   type PersistedAlertRow,
 } from "@/lib/dashboard/run-alerts";
 
+export const runtime = "nodejs";
+/** La carga puede incluir varias llamadas a Gemini; evita el corte por defecto. */
+export const maxDuration = 300;
+
 /**
  * API Dashboard — diario de decisiones
  *
@@ -119,6 +123,13 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
+    console.error(
+      JSON.stringify({
+        event: "dashboard_error",
+        detail: error instanceof Error ? error.message : "unknown",
+      })
+    );
+
     return NextResponse.json(
       { ok: false, error: error instanceof Error ? error.message : "Error interno" },
       { status: 500 }

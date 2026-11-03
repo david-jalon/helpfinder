@@ -46,6 +46,14 @@ export type ScorableGrant = {
   match: MatchResult;
 };
 
+/** Gemini no respondió dentro del tiempo máximo permitido. */
+export class AiTimeoutError extends Error {
+  constructor(timeoutMs: number) {
+    super(`Gemini no respondió en ${timeoutMs} ms`);
+    this.name = "AiTimeoutError";
+  }
+}
+
 /* ------------------------------------------------------------------ */
 /*  Configuración (por usuario: su key; el modelo es global)           */
 /* ------------------------------------------------------------------ */
@@ -102,6 +110,12 @@ function getRetryBaseMs(): number {
   return Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : 400;
 }
 
+/** Tiempo máximo de una llamada a Gemini. Evita que el dashboard se cuelgue. */
+function getRequestTimeoutMs(): number {
+  const raw = Number(process.env.AI_REQUEST_TIMEOUT_MS ?? "15000");
+  return Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : 15_000;
+}
+
 function errorStatus(error: unknown): number | null {
   const status = (error as { status?: unknown } | null)?.status;
   return typeof status === "number" ? status : null;
@@ -120,6 +134,24 @@ function backoffDelayMs(attempt: number, baseMs: number): number {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** Envuelve una promesa con un timeout; la promesa original sigue su curso. */
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new AiTimeoutError(timeoutMs)), timeoutMs);
+
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timer);
+        reject(error);
+      }
+    );
+  });
 }
 
 /** Un usuario "tiene IA configurada" si guardó su key en el perfil. */
@@ -278,6 +310,8 @@ export function buildFallbackResults(candidates: ScorableGrant[]): ScoredGrant[]
  * El `message` del SDK ya suele incluir el detalle del servidor.
  */
 export function formatScoringError(error: unknown): string {
+  if (error instanceof AiTimeoutError) return error.message;
+
   const err = error as { status?: unknown; statusText?: unknown; message?: unknown };
 
   const status = typeof err.status === "number" ? err.status : null;
@@ -332,7 +366,10 @@ async function generateWithRetry(
 
   for (let attempt = 0; attempt <= attempts; attempt++) {
     try {
-      const result = await model.generateContent(prompt);
+      const result = await withTimeout(
+        model.generateContent(prompt),
+        getRequestTimeoutMs()
+      );
       return result.response.text() ?? "";
     } catch (error) {
       lastError = error;
@@ -446,10 +483,12 @@ export async function scoreGrantsForUser(
 
       return {
         status: "fallback",
-        kind:
-          outcome.invalid || !isRetryableError(outcome.error)
-            ? "invalid"
-            : "transient",
+        kind: outcome.invalid
+          ? "invalid"
+          : outcome.error instanceof AiTimeoutError ||
+              isRetryableError(outcome.error)
+            ? "transient"
+            : "invalid",
         results: [...results, ...buildFallbackResults(batch)],
         message,
       };
