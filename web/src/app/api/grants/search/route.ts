@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { searchGrants } from "@/lib/bdns/client";
 import { enrichGrantsWithEligibility } from "@/lib/bdns/detail";
+import { upstreamErrorResponse } from "@/lib/http/server-errors";
 
 export const runtime = "nodejs";
 
@@ -94,12 +95,6 @@ export async function GET(request: NextRequest) {
       { status: 200 }
     );
   } catch (error) {
-    return NextResponse.json(
-      {
-        ok: false,
-        error: error instanceof Error ? error.message : "Error interno",
-      },
-      { status: 502 }
-    );
+    return upstreamErrorResponse("grants_search_error", error);
   }
 }

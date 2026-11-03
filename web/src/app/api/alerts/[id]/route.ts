@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/supabase/server";
 import { deleteAlerts, setAlertDecision } from "@/lib/db";
 import { isAlertDecision } from "@/lib/dashboard/run-alerts";
+import { internalErrorResponse } from "@/lib/http/server-errors";
 
 /**
  * API Alerts — diario de decisiones
@@ -58,14 +59,11 @@ export async function PUT(
       );
     }
 
-    await setAlertDecision(id, decision);
+    await setAlertDecision(user.id, id, decision);
 
     return NextResponse.json({ ok: true, decision });
   } catch (error) {
-    return NextResponse.json(
-      { ok: false, error: error instanceof Error ? error.message : "Error interno" },
-      { status: 500 }
-    );
+    return internalErrorResponse("alert_put_error", error);
   }
 }
 
@@ -94,9 +92,6 @@ export async function DELETE(
 
     return NextResponse.json({ ok: true, deletedId: id });
   } catch (error) {
-    return NextResponse.json(
-      { ok: false, error: error instanceof Error ? error.message : "Error interno" },
-      { status: 500 }
-    );
+    return internalErrorResponse("alert_delete_error", error);
   }
 }

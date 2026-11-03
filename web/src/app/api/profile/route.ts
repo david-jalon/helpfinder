@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/supabase/server";
 import { getProfile, upsertProfile } from "@/lib/db";
+import { internalErrorResponse } from "@/lib/http/server-errors";
 import type { ProfileInput } from "@/lib/domain/profile";
 import {
   LIMITS,
@@ -52,10 +53,7 @@ export async function GET() {
       },
     });
   } catch (error) {
-    return NextResponse.json(
-      { ok: false, error: error instanceof Error ? error.message : "Error interno" },
-      { status: 500 }
-    );
+    return internalErrorResponse("profile_get_error", error);
   }
 }
 
@@ -69,7 +67,28 @@ export async function PUT(request: Request) {
       );
     }
 
-    const body = (await request.json()) as Record<string, unknown>;
+    let rawBody: unknown;
+    try {
+      rawBody = await request.json();
+    } catch {
+      return NextResponse.json(
+        { ok: false, error: "Cuerpo inválido" },
+        { status: 400 }
+      );
+    }
+
+    if (
+      rawBody === null ||
+      typeof rawBody !== "object" ||
+      Array.isArray(rawBody)
+    ) {
+      return NextResponse.json(
+        { ok: false, error: "Cuerpo inválido" },
+        { status: 400 }
+      );
+    }
+
+    const body = rawBody as Record<string, unknown>;
 
     // Validación de entrada
     const allowedFields: Record<string, unknown> = {};
@@ -167,9 +186,6 @@ export async function PUT(request: Request) {
 
     return NextResponse.json({ ok: true });
   } catch (error) {
-    return NextResponse.json(
-      { ok: false, error: error instanceof Error ? error.message : "Error interno" },
-      { status: 500 }
-    );
+    return internalErrorResponse("profile_put_error", error);
   }
 }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchGrantDetailByNumConv } from "@/lib/bdns/detail";
+import { internalErrorResponse } from "@/lib/http/server-errors";
 
 export const runtime = "nodejs";
 
@@ -18,12 +19,6 @@ export async function GET(
 
     return NextResponse.json({ ok: true, data: result.data });
   } catch (error) {
-    return NextResponse.json(
-      {
-        ok: false,
-        error: error instanceof Error ? error.message : "Error interno",
-      },
-      { status: 500 }
-    );
+    return internalErrorResponse("grant_detail_error", error);
   }
 }

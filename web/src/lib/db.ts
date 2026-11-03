@@ -296,6 +296,7 @@ export async function deleteAlerts(
  * coincide con el usuario de la sesión.
  */
 export async function setAlertDecision(
+  userId: string,
   alertId: string,
   decision: "seguir" | "posible" | "denegada" | null
 ): Promise<void> {
@@ -303,7 +304,8 @@ export async function setAlertDecision(
   const { error } = await supabase
     .from("user_alerts")
     .update({ decision })
-    .eq("id", alertId);
+    .eq("id", alertId)
+    .eq("user_id", userId);
 
   if (error) throw error;
 }

@@ -57,21 +57,23 @@ export type FollowGrantAuthoritative = {
 };
 
 /**
- * Combina lo que manda el cliente con el detalle AUTORITATIVO de BDNS.
+ * Construye la fila que se guarda usando SOLO el detalle autoritativo de BDNS.
  *
  * - La `sourceUrl` se SIEMPRE regenera desde el id: nunca se guarda una URL
  *   del cliente (evita enlaces maliciosos en la caché compartida).
- * - Título y organismo se prefieren los de BDNS; si no llegaron, los del
- *   cliente (el id ya se validó como numérico).
+ * - El título y el organismo del cliente NO se usan: si BDNS no devuelve
+ *   título, se guarda un texto neutro con el número de convocatoria.
+ *   La ruta `/api/follow` exige que el detalle de BDNS se haya podido leer.
  */
 export function resolveFollowGrant(
   validated: FollowGrantInput,
-  authoritative: FollowGrantAuthoritative | null
+  authoritative: FollowGrantAuthoritative
 ): FollowGrantInput {
   return {
     id: validated.id,
-    title: authoritative?.title?.trim() || validated.title,
-    organization: authoritative?.organization?.trim() || validated.organization,
+    title:
+      authoritative.title?.trim() || `Convocatoria ${validated.id}`,
+    organization: authoritative.organization?.trim() || null,
     sourceUrl: buildInfosubvencionesConvocatoriaUrl(validated.id),
   };
 }

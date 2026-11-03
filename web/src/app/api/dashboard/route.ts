@@ -9,6 +9,7 @@ import {
   deleteAlerts,
 } from "@/lib/db";
 import { getGrantsSeenByIds } from "@/lib/grants/feed";
+import { internalErrorResponse } from "@/lib/http/server-errors";
 import { parseDiaryPagination } from "@/lib/dashboard/pagination";
 import {
   runAlerts,
@@ -123,16 +124,6 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error(
-      JSON.stringify({
-        event: "dashboard_error",
-        detail: error instanceof Error ? error.message : "unknown",
-      })
-    );
-
-    return NextResponse.json(
-      { ok: false, error: error instanceof Error ? error.message : "Error interno" },
-      { status: 500 }
-    );
+    return internalErrorResponse("dashboard_error", error);
   }
 }

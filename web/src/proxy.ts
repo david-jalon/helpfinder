@@ -64,8 +64,17 @@ export async function proxy(request: NextRequest) {
     pathname === "/register" ||
     pathname === "/forgot-password";
 
-  // Sin sesión en una ruta privada → a /login
+  // Sin sesión en una ruta privada:
+  //  - APIs → 401 JSON (un fetch no debe seguir un redirect a HTML)
+  //  - páginas → /login
   if (isProtected && !user) {
+    if (pathname.startsWith("/api/")) {
+      return NextResponse.json(
+        { ok: false, error: "No autenticado" },
+        { status: 401 }
+      );
+    }
+
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     url.searchParams.set("next", pathname);
