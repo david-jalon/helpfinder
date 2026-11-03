@@ -17,6 +17,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import type { GrantItem } from "@/lib/domain/grants";
 import type { Profile } from "@/lib/domain/profile";
 import type { MatchResult } from "@/lib/matching/matcher";
+import { incrementMetric } from "@/lib/observability/metrics";
 
 export type ScoredGrant = {
   grantId: string;
@@ -480,6 +481,7 @@ export async function scoreGrantsForUser(
       console.error(
         JSON.stringify({ event: "grant_score_error", detail: message })
       );
+      incrementMetric("ai_fallback");
 
       return {
         status: "fallback",

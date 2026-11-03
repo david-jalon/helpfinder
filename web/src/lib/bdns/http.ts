@@ -10,6 +10,8 @@
  * scheduler; es suficiente para no saturar BDNS desde una misma función.
  */
 
+import { incrementMetric } from "@/lib/observability/metrics";
+
 export type BdnsHttpConfig = {
   maxConcurrency: number;
   minIntervalMs: number;
@@ -54,7 +56,6 @@ export class BdnsHttpError extends Error {
     this.status = status;
   }
 }
-
 export class BdnsTimeoutError extends Error {
   constructor(timeoutMs: number) {
     super(`BDNS no respondió en ${timeoutMs} ms`);
@@ -218,6 +219,10 @@ export async function bdnsFetch(
       const response = await withSlot(cfg, () =>
         fetchOnce(url, init, cfg.timeoutMs)
       );
+
+      if (response.status === 429) {
+        incrementMetric("bdns_429");
+      }
 
       if (response.ok) return response;
 

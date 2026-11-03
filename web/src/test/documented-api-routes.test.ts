@@ -20,6 +20,7 @@ const DOCUMENTED_ROUTE_SEGMENTS: string[][] = [
   ["auth", "status"],
   ["cron", "daily"],
   ["cron", "enrich"],
+  ["health"],
 ];
 
 const __dirname = dirname(fileURLToPath(import.meta.url));

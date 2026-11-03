@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isCronAuthorized } from "@/lib/cron/auth";
 import { dailyScan } from "@/lib/grants/daily-scan";
+import { recordCronRun } from "@/lib/observability/cron-runs";
 
 /**
  * Cron diario
@@ -28,6 +29,18 @@ export async function GET(request: NextRequest) {
 
   try {
     const result = await dailyScan();
+
+    // Historial para /api/health: los logs de Vercel son efímeros.
+    await recordCronRun({
+      durationMs: result.durationMs,
+      stopReason: result.stopReason,
+      pagesFetched: result.pagesFetched,
+      newGrants: result.newGrantsCount,
+      enriched: result.enrichedCount,
+      enrichedFailed: result.enrichedFailed,
+      pendingBacklog: result.pendingBacklog,
+      retrySkipped: result.retrySkipped,
+    });
 
     console.info(
       JSON.stringify({

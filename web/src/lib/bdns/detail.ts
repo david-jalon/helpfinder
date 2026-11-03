@@ -1,5 +1,6 @@
 import type { GrantDetail, GrantItem } from "@/lib/domain/grants";
 import { createTtlCache } from "@/lib/domain/ttl-cache";
+import { incrementMetric } from "@/lib/observability/metrics";
 import { bdnsFetch } from "./http";
 import { buildInfosubvencionesConvocatoriaUrl, getBdnsApiBase } from "./urls";
 
@@ -429,6 +430,8 @@ export async function enrichGrantsWithEligibility<T extends EnrichableGrant>(
         item.applicationEndText = fields.applicationEndText;
         item.openEnded = fields.openEnded;
         succeeded.add(item.id);
+      } else {
+        incrementMetric("enriched_failed");
       }
     }
   }
